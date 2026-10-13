@@ -3,18 +3,23 @@ import "dotenv/config";
 import swaggerUi from "swagger-ui-express";
 
 import adminRoutes from "./src/routes/adminAuthRoutes.js";
-import userRoutes from "./src/routes/userRoutes.js";
-import socialAuthRoutes from "./src/routes/socialAuthRoutes.js";
-import enquiryRoutes from "./src/routes/enquiryRoutes.js";
 import adminEnquiryRoutes from "./src/routes/adminEnquiryRoutes.js";
+import businessDetailRoutes from "./src/routes/businessDetailRoutes.js";
 
 import adminAdObjectiveRoutes from "./src/routes/adminAdObjectiveRoutes.js";
 import adminAdTypeRoutes from "./src/routes/adminAdTypeRoutes.js";
+import adminAdActionButtonRoutes from "./src/routes/adminAdActionButtonRoutes.js";
 
+import userRoutes from "./src/routes/userRoutes.js";
+import socialAuthRoutes from "./src/routes/socialAuthRoutes.js";
+import enquiryRoutes from "./src/routes/enquiryRoutes.js";
 import adObjectiveRoutes from "./src/routes/adObjectiveRoutes.js";
 import adTypeRoutes from "./src/routes/adTypeRoutes.js";
-
+import adActionButtonRoutes from "./src/routes/adActionButtonRoutes.js";
 import walletRoutes from "./src/routes/walletRoutes.js";
+import profileRoutes from "./src/routes/profileRoutes.js";
+
+import errorHandler from "./src/middleware/errorHandler.js";
 
 import swaggerDocument from "./src/configs/swagger/swagger.js";
 import { startAccountDeletionJob } from "./src/jobs/accountDeletionCron.js";
@@ -49,22 +54,24 @@ app.get("/", (req, res) => {
 app.use("/api/admin", adminRoutes);
 
 app.use("/api/admin/ad-objectives", adminAdObjectiveRoutes);
-
 app.use("/api/admin/ad-types", adminAdTypeRoutes);
+app.use("/api/admin/ad-action-buttons", adminAdActionButtonRoutes);
 
 app.use("/api/ad-objectives", adObjectiveRoutes);
-
 app.use("/api/ad-types", adTypeRoutes);
+app.use("/api/ad-action-buttons", adActionButtonRoutes);
 
 app.use("/api/auth", userRoutes);
-
 app.use("/api/auth", socialAuthRoutes);
 
 app.use("/api/enquiries", enquiryRoutes);
-
 app.use("/api/admin/enquiries", adminEnquiryRoutes);
+app.use("/api/business-details", businessDetailRoutes);
 
 app.use("/api/wallet", walletRoutes);
+app.use("/api/settings", profileRoutes);
+
+app.use(errorHandler);
 
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 

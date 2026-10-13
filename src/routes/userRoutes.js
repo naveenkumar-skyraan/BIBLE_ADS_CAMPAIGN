@@ -1,15 +1,17 @@
 import express from "express";
 
 import {
-    signupController,
-    verifyOtpController,
-    resendOtpController,
-    loginController,
-    refreshTokenController,
-    logoutController,
-    forgotPasswordController,
-    resetPasswordController,
-    deleteAccountController
+  signupController,
+  verifyOtpController,
+  resendOtpController,
+  loginController,
+  refreshTokenController,
+  logoutController,
+  forgotPasswordController,
+  resetPasswordController,
+  deleteAccountController,
+  changePasswordController,
+  accountDeletionFeedbackController,
 } from "../controllers/userController.js";
 
 import { middleware } from "../middleware/authMiddleware.js";
@@ -243,7 +245,68 @@ router.post("/reset-password", resetPasswordController);
  *       409:
  *         description: Account deletion already pending
  */
-router.delete(
-    "/delete-account",middleware,deleteAccountController);
+router.delete("/delete-account", middleware, deleteAccountController);
+
+/**
+ * @swagger
+ * /api/auth/change-password:
+ *   put:
+ *     tags:
+ *       - Authentication
+ *     summary: Change the authenticated user's password
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ChangePasswordRequest'
+ *     responses:
+ *       200:
+ *         description: Password changed successfully
+ *       400:
+ *         description: Validation failed or new password is unchanged
+ *       401:
+ *         description: Current password is incorrect
+ *       404:
+ *         description: User not found
+ *       409:
+ *         description: Account deletion pending
+ */
+router.put("/change-password", middleware, changePasswordController);
+
+/**
+ * @swagger
+ * /api/auth/account-deletion-feedback:
+ *   post:
+ *     tags:
+ *       - Authentication
+ *     summary: Submit account deletion feedback
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/AccountDeletionFeedbackRequest'
+ *     responses:
+ *       201:
+ *         description: Feedback stored successfully
+ *       400:
+ *         description: Invalid feedback
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: User not found
+ *       409:
+ *         description: Account deletion pending
+ */
+router.post(
+  "/account-deletion-feedback",
+  middleware,
+  accountDeletionFeedbackController,
+);
 
 export default router;

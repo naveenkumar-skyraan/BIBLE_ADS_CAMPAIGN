@@ -1,8 +1,8 @@
 import pool from "../configs/database/db.js";
 
 export const findUserByPhone = async (phone) => {
-    const [rows] = await pool.execute(
-        `SELECT
+  const [rows] = await pool.execute(
+    `SELECT
             id,
             name,
             phone,
@@ -20,15 +20,15 @@ export const findUserByPhone = async (phone) => {
         FROM users
         WHERE phone = ?
         LIMIT 1`,
-        [phone]
-    );
+    [phone],
+  );
 
-    return rows[0] || null;
+  return rows[0] || null;
 };
 
 export const findUserById = async (id) => {
-    const [rows] = await pool.execute(
-        `SELECT
+  const [rows] = await pool.execute(
+    `SELECT
             id,
             name,
             phone,
@@ -46,22 +46,22 @@ export const findUserById = async (id) => {
         FROM users
         WHERE id = ?
         LIMIT 1`,
-        [id]
-    );
+    [id],
+  );
 
-    return rows[0] || null;
+  return rows[0] || null;
 };
 
 export const createUser = async ({
-    name,
-    phone,
-    passwordHash,
-    otp,
-    otpExpiresAt,
-    otpPurpose
+  name,
+  phone,
+  passwordHash,
+  otp,
+  otpExpiresAt,
+  otpPurpose,
 }) => {
-    const [result] = await pool.execute(
-        `INSERT INTO users
+  const [result] = await pool.execute(
+    `INSERT INTO users
         (
             name,
             phone,
@@ -72,142 +72,136 @@ export const createUser = async ({
             otp_purpose
         )
         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [
-            name,
-            phone,
-            passwordHash,
-            0,
-            otp,
-            otpExpiresAt,
-            otpPurpose
-        ]
-    );
+    [name, phone, passwordHash, 0, otp, otpExpiresAt, otpPurpose],
+  );
 
-    return result.insertId;
+  return result.insertId;
 };
 
-export const updateOtp = async ({
-    userId,
-    otp,
-    otpExpiresAt,
-    otpPurpose
-}) => {
-    await pool.execute(
-        `UPDATE users
+export const updateOtp = async ({ userId, otp, otpExpiresAt, otpPurpose }) => {
+  await pool.execute(
+    `UPDATE users
         SET
             otp = ?,
             otp_expires_at = ?,
             otp_purpose = ?
         WHERE id = ?`,
-        [
-            otp,
-            otpExpiresAt,
-            otpPurpose,
-            userId
-        ]
-    );
+    [otp, otpExpiresAt, otpPurpose, userId],
+  );
 };
 
 export const verifyPhone = async (userId) => {
-    await pool.execute(
-        `UPDATE users
+  await pool.execute(
+    `UPDATE users
         SET
             is_phone_verified = 1,
             otp = NULL,
             otp_expires_at = NULL,
             otp_purpose = NULL
         WHERE id = ?`,
-        [userId]
-    );
+    [userId],
+  );
 };
 
 export const clearOtp = async (userId) => {
-    await pool.execute(
-        `UPDATE users
+  await pool.execute(
+    `UPDATE users
         SET
             otp = NULL,
             otp_expires_at = NULL,
             otp_purpose = NULL
         WHERE id = ?`,
-        [userId]
-    );
+    [userId],
+  );
 };
 
 export const updatePassword = async (userId, passwordHash) => {
-    await pool.execute(
-        `UPDATE users
+  await pool.execute(
+    `UPDATE users
         SET
             password_hash = ?,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = ?`,
-        [
-            passwordHash,
-            userId
-        ]
-    );
+    [passwordHash, userId],
+  );
 };
 
 export const updateRefreshToken = async ({
-    userId,
-    refreshToken,
-    refreshTokenExpiresAt
+  userId,
+  refreshToken,
+  refreshTokenExpiresAt,
 }) => {
-    await pool.execute(
-        `UPDATE users
+  await pool.execute(
+    `UPDATE users
         SET
             refresh_token = ?,
             refresh_token_expires_at = ?
         WHERE id = ?`,
-        [
-            refreshToken,
-            refreshTokenExpiresAt,
-            userId
-        ]
-    );
+    [refreshToken, refreshTokenExpiresAt, userId],
+  );
 };
 
 export const clearRefreshToken = async (userId) => {
-    await pool.execute(
-        `UPDATE users
+  await pool.execute(
+    `UPDATE users
         SET
             refresh_token = NULL,
             refresh_token_expires_at = NULL
         WHERE id = ?`,
-        [userId]
-    );
+    [userId],
+  );
 };
 
 export const markAccountForDeletion = async (userId) => {
-    await pool.execute(
-        `UPDATE users
+  await pool.execute(
+    `UPDATE users
         SET
             is_account_deleted = 1,
             account_deleted_at = CURRENT_TIMESTAMP,
             refresh_token = NULL,
             refresh_token_expires_at = NULL
         WHERE id = ?`,
-        [userId]
-    );
+    [userId],
+  );
 };
 
 export const reactivateAccount = async (userId) => {
-    await pool.execute(
-        `UPDATE users
+  await pool.execute(
+    `UPDATE users
         SET
             is_account_deleted = 0,
             account_deleted_at = NULL
         WHERE id = ?`,
-        [userId]
-    );
+    [userId],
+  );
 };
 
 export const permanentlyDeleteExpiredAccounts = async () => {
-    const [result] = await pool.execute(
-        `DELETE FROM users
+  const [result] = await pool.execute(
+    `DELETE FROM users
         WHERE is_account_deleted = 1
         AND account_deleted_at IS NOT NULL
-        AND account_deleted_at <= DATE_SUB(NOW(), INTERVAL 30 DAY)`
-    );
+        AND account_deleted_at <= DATE_SUB(NOW(), INTERVAL 30 DAY)`,
+  );
 
-    return result.affectedRows;
+  return result.affectedRows;
+};
+
+export const createAccountDeletionFeedback = async ({
+  userId,
+  reason,
+  otherReason,
+}) => {
+  const [result] = await pool.execute(
+    `INSERT INTO account_deletion_feedback
+        (
+            user_id,
+            reason,
+            other_reason
+        )
+        VALUES (?, ?, ?)`,
+    [userId, reason, reason === "OTHER" ? otherReason : null],
+  );
+
+  return result.insertId;
 };

@@ -1,0 +1,3754 @@
+{
+  "version": "1.0",
+  "countries": [
+    {
+      "country_code": "AF",
+      "country_name": "Afghanistan",
+      "country_flag": "🇦🇫",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "AL",
+      "country_name": "Albania",
+      "country_flag": "🇦🇱",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "County / Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "DZ",
+      "country_name": "Algeria",
+      "country_flag": "🇩🇿",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province / Wilaya"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "AD",
+      "country_name": "Andorra",
+      "country_flag": "🇦🇩",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Parish"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "AO",
+      "country_name": "Angola",
+      "country_flag": "🇦🇴",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "State / Province / Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "AG",
+      "country_name": "Antigua and Barbuda",
+      "country_flag": "🇦🇬",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "State / Province / Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "AR",
+      "country_name": "Argentina",
+      "country_flag": "🇦🇷",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "AM",
+      "country_name": "Armenia",
+      "country_flag": "🇦🇲",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "AU",
+      "country_name": "Australia",
+      "country_flag": "🇦🇺",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "State / Territory"
+        },
+        {
+          "value": "city",
+          "label": "Suburb / Locality"
+        },
+        {
+          "value": "area",
+          "label": "Suburb"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postcode"
+        }
+      ]
+    },
+    {
+      "country_code": "AT",
+      "country_name": "Austria",
+      "country_flag": "🇦🇹",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "State"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postcode"
+        }
+      ]
+    },
+    {
+      "country_code": "AZ",
+      "country_name": "Azerbaijan",
+      "country_flag": "🇦🇿",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "BS",
+      "country_name": "Bahamas",
+      "country_flag": "🇧🇸",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "State / Province / Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "BH",
+      "country_name": "Bahrain",
+      "country_flag": "🇧🇭",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "State / Province / Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "BD",
+      "country_name": "Bangladesh",
+      "country_flag": "🇧🇩",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Division"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "District"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "BB",
+      "country_name": "Barbados",
+      "country_flag": "🇧🇧",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "State / Province / Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "BY",
+      "country_name": "Belarus",
+      "country_flag": "🇧🇾",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "BE",
+      "country_name": "Belgium",
+      "country_flag": "🇧🇪",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "BZ",
+      "country_name": "Belize",
+      "country_flag": "🇧🇿",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "State / Province / Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "BJ",
+      "country_name": "Benin",
+      "country_flag": "🇧🇯",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "State / Province / Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "BT",
+      "country_name": "Bhutan",
+      "country_flag": "🇧🇹",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "State / Province / Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "BO",
+      "country_name": "Bolivia",
+      "country_flag": "🇧🇴",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Department"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "BA",
+      "country_name": "Bosnia and Herzegovina",
+      "country_flag": "🇧🇦",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Entity / Canton"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "BW",
+      "country_name": "Botswana",
+      "country_flag": "🇧🇼",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "District"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "BR",
+      "country_name": "Brazil",
+      "country_flag": "🇧🇷",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "State"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "Municipality"
+        },
+        {
+          "value": "city",
+          "label": "City / Municipality"
+        },
+        {
+          "value": "area",
+          "label": "Neighborhood (Bairro)"
+        },
+        {
+          "value": "postal_code",
+          "label": "CEP"
+        }
+      ]
+    },
+    {
+      "country_code": "BN",
+      "country_name": "Brunei",
+      "country_flag": "🇧🇳",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "State / Province / Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "BG",
+      "country_name": "Bulgaria",
+      "country_flag": "🇧🇬",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "BF",
+      "country_name": "Burkina Faso",
+      "country_flag": "🇧🇫",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "BI",
+      "country_name": "Burundi",
+      "country_flag": "🇧🇮",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "CV",
+      "country_name": "Cabo Verde",
+      "country_flag": "🇨🇻",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Municipality / Island"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "KH",
+      "country_name": "Cambodia",
+      "country_flag": "🇰🇭",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "CM",
+      "country_name": "Cameroon",
+      "country_flag": "🇨🇲",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "CA",
+      "country_name": "Canada",
+      "country_flag": "🇨🇦",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province / Territory"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "Regional District / County"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "area",
+          "label": "Neighbourhood"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "CF",
+      "country_name": "Central African Republic",
+      "country_flag": "🇨🇫",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Prefecture"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "TD",
+      "country_name": "Chad",
+      "country_flag": "🇹🇩",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "CL",
+      "country_name": "Chile",
+      "country_flag": "🇨🇱",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "CN",
+      "country_name": "China",
+      "country_flag": "🇨🇳",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province / Autonomous Region / Municipality"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "District / County"
+        },
+        {
+          "value": "city",
+          "label": "City / Locality"
+        },
+        {
+          "value": "area",
+          "label": "Subdistrict / Neighborhood"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "CO",
+      "country_name": "Colombia",
+      "country_flag": "🇨🇴",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Department"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "Municipality"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "area",
+          "label": "Locality / Vereda"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "KM",
+      "country_name": "Comoros",
+      "country_flag": "🇰🇲",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Island"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "CG",
+      "country_name": "Republic of the Congo",
+      "country_flag": "🇨🇬",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Department"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "CD",
+      "country_name": "Democratic Republic of the Congo",
+      "country_flag": "🇨🇩",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "CR",
+      "country_name": "Costa Rica",
+      "country_flag": "🇨🇷",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "CI",
+      "country_name": "Côte d'Ivoire",
+      "country_flag": "🇨🇮",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "District"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "HR",
+      "country_name": "Croatia",
+      "country_flag": "🇭🇷",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "County"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "CU",
+      "country_name": "Cuba",
+      "country_flag": "🇨🇺",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "CY",
+      "country_name": "Cyprus",
+      "country_flag": "🇨🇾",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "District"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "CZ",
+      "country_name": "Czechia",
+      "country_flag": "🇨🇿",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "DK",
+      "country_name": "Denmark",
+      "country_flag": "🇩🇰",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "DJ",
+      "country_name": "Djibouti",
+      "country_flag": "🇩🇯",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "DM",
+      "country_name": "Dominica",
+      "country_flag": "🇩🇲",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Parish"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "DO",
+      "country_name": "Dominican Republic",
+      "country_flag": "🇩🇴",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "EC",
+      "country_name": "Ecuador",
+      "country_flag": "🇪🇨",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "EG",
+      "country_name": "Egypt",
+      "country_flag": "🇪🇬",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Governorate"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "SV",
+      "country_name": "El Salvador",
+      "country_flag": "🇸🇻",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Department"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "GQ",
+      "country_name": "Equatorial Guinea",
+      "country_flag": "🇬🇶",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "ER",
+      "country_name": "Eritrea",
+      "country_flag": "🇪🇷",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "EE",
+      "country_name": "Estonia",
+      "country_flag": "🇪🇪",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "County"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "SZ",
+      "country_name": "Eswatini",
+      "country_flag": "🇸🇿",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "ET",
+      "country_name": "Ethiopia",
+      "country_flag": "🇪🇹",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "FJ",
+      "country_name": "Fiji",
+      "country_flag": "🇫🇯",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Division"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "FI",
+      "country_name": "Finland",
+      "country_flag": "🇫🇮",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "FR",
+      "country_name": "France",
+      "country_flag": "🇫🇷",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "Department"
+        },
+        {
+          "value": "city",
+          "label": "City / Commune"
+        },
+        {
+          "value": "area",
+          "label": "Neighbourhood / Arrondissement"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "GA",
+      "country_name": "Gabon",
+      "country_flag": "🇬🇦",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "GM",
+      "country_name": "Gambia",
+      "country_flag": "🇬🇲",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "GE",
+      "country_name": "Georgia",
+      "country_flag": "🇬🇪",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "DE",
+      "country_name": "Germany",
+      "country_flag": "🇩🇪",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "State"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "GH",
+      "country_name": "Ghana",
+      "country_flag": "🇬🇭",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "GR",
+      "country_name": "Greece",
+      "country_flag": "🇬🇷",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "GD",
+      "country_name": "Grenada",
+      "country_flag": "🇬🇩",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Parish"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "GT",
+      "country_name": "Guatemala",
+      "country_flag": "🇬🇹",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Department"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "GN",
+      "country_name": "Guinea",
+      "country_flag": "🇬🇳",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "GW",
+      "country_name": "Guinea-Bissau",
+      "country_flag": "🇬🇼",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "GY",
+      "country_name": "Guyana",
+      "country_flag": "🇬🇾",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "HT",
+      "country_name": "Haiti",
+      "country_flag": "🇭🇹",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Department"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "HN",
+      "country_name": "Honduras",
+      "country_flag": "🇭🇳",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Department"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "HU",
+      "country_name": "Hungary",
+      "country_flag": "🇭🇺",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "County"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "IS",
+      "country_name": "Iceland",
+      "country_flag": "🇮🇸",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "IN",
+      "country_name": "India",
+      "country_flag": "🇮🇳",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "State / Union Territory"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "District"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "area",
+          "label": "Area / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "PIN Code"
+        }
+      ]
+    },
+    {
+      "country_code": "ID",
+      "country_name": "Indonesia",
+      "country_flag": "🇮🇩",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "Regency / City"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "area",
+          "label": "Village / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "IR",
+      "country_name": "Iran",
+      "country_flag": "🇮🇷",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "County / District"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "IQ",
+      "country_name": "Iraq",
+      "country_flag": "🇮🇶",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Governorate"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "District"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "IE",
+      "country_name": "Ireland",
+      "country_flag": "🇮🇪",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "County"
+        },
+        {
+          "value": "city",
+          "label": "Town / City"
+        },
+        {
+          "value": "area",
+          "label": "Townland / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Eircode"
+        }
+      ]
+    },
+    {
+      "country_code": "IL",
+      "country_name": "Israel",
+      "country_flag": "🇮🇱",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "District"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "IT",
+      "country_name": "Italy",
+      "country_flag": "🇮🇹",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "Province"
+        },
+        {
+          "value": "city",
+          "label": "Municipality / City"
+        },
+        {
+          "value": "postal_code",
+          "label": "CAP"
+        }
+      ]
+    },
+    {
+      "country_code": "JM",
+      "country_name": "Jamaica",
+      "country_flag": "🇯🇲",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Parish"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "JP",
+      "country_name": "Japan",
+      "country_flag": "🇯🇵",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Prefecture"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "Municipality / City"
+        },
+        {
+          "value": "city",
+          "label": "Municipality / City"
+        },
+        {
+          "value": "area",
+          "label": "Ward / Neighborhood"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "JO",
+      "country_name": "Jordan",
+      "country_flag": "🇯🇴",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Governorate"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "KZ",
+      "country_name": "Kazakhstan",
+      "country_flag": "🇰🇿",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "KE",
+      "country_name": "Kenya",
+      "country_flag": "🇰🇪",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "County"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "Sub-county"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "KI",
+      "country_name": "Kiribati",
+      "country_flag": "🇰🇮",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "State / Province / Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "KP",
+      "country_name": "North Korea",
+      "country_flag": "🇰🇵",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province / Special City"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "KR",
+      "country_name": "South Korea",
+      "country_flag": "🇰🇷",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province / Metropolitan City"
+        },
+        {
+          "value": "city",
+          "label": "City / Municipality"
+        },
+        {
+          "value": "area",
+          "label": "Neighborhood"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "KW",
+      "country_name": "Kuwait",
+      "country_flag": "🇰🇼",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Governorate"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "KG",
+      "country_name": "Kyrgyzstan",
+      "country_flag": "🇰🇬",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "LA",
+      "country_name": "Laos",
+      "country_flag": "🇱🇦",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "LV",
+      "country_name": "Latvia",
+      "country_flag": "🇱🇻",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "State / Province / Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "LB",
+      "country_name": "Lebanon",
+      "country_flag": "🇱🇧",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Governorate"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "LS",
+      "country_name": "Lesotho",
+      "country_flag": "🇱🇸",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "District"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "LR",
+      "country_name": "Liberia",
+      "country_flag": "🇱🇷",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "County"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "LY",
+      "country_name": "Libya",
+      "country_flag": "🇱🇾",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Municipality / Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "LI",
+      "country_name": "Liechtenstein",
+      "country_flag": "🇱🇮",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Municipality"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "LT",
+      "country_name": "Lithuania",
+      "country_flag": "🇱🇹",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "County"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "LU",
+      "country_name": "Luxembourg",
+      "country_flag": "🇱🇺",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Canton"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postcode"
+        }
+      ]
+    },
+    {
+      "country_code": "MG",
+      "country_name": "Madagascar",
+      "country_flag": "🇲🇬",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "MW",
+      "country_name": "Malawi",
+      "country_flag": "🇲🇼",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "MY",
+      "country_name": "Malaysia",
+      "country_flag": "🇲🇾",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "State / Federal Territory"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "District"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "area",
+          "label": "Locality / Village"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postcode"
+        }
+      ]
+    },
+    {
+      "country_code": "MV",
+      "country_name": "Maldives",
+      "country_flag": "🇲🇻",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Atoll"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "ML",
+      "country_name": "Mali",
+      "country_flag": "🇲🇱",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "MT",
+      "country_name": "Malta",
+      "country_flag": "🇲🇹",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postcode"
+        }
+      ]
+    },
+    {
+      "country_code": "MH",
+      "country_name": "Marshall Islands",
+      "country_flag": "🇲🇭",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Atoll"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "MR",
+      "country_name": "Mauritania",
+      "country_flag": "🇲🇷",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "MU",
+      "country_name": "Mauritius",
+      "country_flag": "🇲🇺",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "District"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "MX",
+      "country_name": "Mexico",
+      "country_flag": "🇲🇽",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "State"
+        },
+        {
+          "value": "city",
+          "label": "City / Locality"
+        },
+        {
+          "value": "area",
+          "label": "Neighborhood (Colonia)"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "FM",
+      "country_name": "Micronesia (Federated States of)",
+      "country_flag": "🇫🇲",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "State"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "MD",
+      "country_name": "Moldova",
+      "country_flag": "🇲🇩",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "District / Municipality"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "MC",
+      "country_name": "Monaco",
+      "country_flag": "🇲🇨",
+      "fields": [
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "MN",
+      "country_name": "Mongolia",
+      "country_flag": "🇲🇳",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province / Capital City"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "ME",
+      "country_name": "Montenegro",
+      "country_flag": "🇲🇪",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Municipality"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "MA",
+      "country_name": "Morocco",
+      "country_flag": "🇲🇦",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "Province / Prefecture"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "area",
+          "label": "Locality / Neighborhood"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "MZ",
+      "country_name": "Mozambique",
+      "country_flag": "🇲🇿",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "MM",
+      "country_name": "Myanmar",
+      "country_flag": "🇲🇲",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region / State"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "NA",
+      "country_name": "Namibia",
+      "country_flag": "🇳🇦",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "NR",
+      "country_name": "Nauru",
+      "country_flag": "🇳🇷",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "District"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "NP",
+      "country_name": "Nepal",
+      "country_flag": "🇳🇵",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "District"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "NL",
+      "country_name": "Netherlands",
+      "country_flag": "🇳🇱",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "State / Province / Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postcode"
+        }
+      ]
+    },
+    {
+      "country_code": "NZ",
+      "country_name": "New Zealand",
+      "country_flag": "🇳🇿",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "State / Province / Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "area",
+          "label": "Suburb / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postcode"
+        }
+      ]
+    },
+    {
+      "country_code": "NI",
+      "country_name": "Nicaragua",
+      "country_flag": "🇳🇮",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Department"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "NE",
+      "country_name": "Niger",
+      "country_flag": "🇳🇪",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "NG",
+      "country_name": "Nigeria",
+      "country_flag": "🇳🇬",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "State"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "Local Government Area"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "area",
+          "label": "Area / District"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "MK",
+      "country_name": "North Macedonia",
+      "country_flag": "🇲🇰",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Municipality / Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "NO",
+      "country_name": "Norway",
+      "country_flag": "🇳🇴",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "County"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "OM",
+      "country_name": "Oman",
+      "country_flag": "🇴🇲",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Governorate"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "PK",
+      "country_name": "Pakistan",
+      "country_flag": "🇵🇰",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province / Territory"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "District"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "PW",
+      "country_name": "Palau",
+      "country_flag": "🇵🇼",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "State"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "PA",
+      "country_name": "Panama",
+      "country_flag": "🇵🇦",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "PG",
+      "country_name": "Papua New Guinea",
+      "country_flag": "🇵🇬",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "PY",
+      "country_name": "Paraguay",
+      "country_flag": "🇵🇾",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Department"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "PE",
+      "country_name": "Peru",
+      "country_flag": "🇵🇪",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region / Department"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "Province / District"
+        },
+        {
+          "value": "city",
+          "label": "City / District"
+        },
+        {
+          "value": "area",
+          "label": "Sector / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "PH",
+      "country_name": "Philippines",
+      "country_flag": "🇵🇭",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region / Province"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "Province / City / Municipality"
+        },
+        {
+          "value": "city",
+          "label": "City / Municipality"
+        },
+        {
+          "value": "area",
+          "label": "Barangay"
+        },
+        {
+          "value": "postal_code",
+          "label": "ZIP Code"
+        }
+      ]
+    },
+    {
+      "country_code": "PL",
+      "country_name": "Poland",
+      "country_flag": "🇵🇱",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Voivodeship"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "PT",
+      "country_name": "Portugal",
+      "country_flag": "🇵🇹",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "District / Autonomous Region"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "Municipality"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "QA",
+      "country_name": "Qatar",
+      "country_flag": "🇶🇦",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Municipality"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "RO",
+      "country_name": "Romania",
+      "country_flag": "🇷🇴",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "County / Municipality"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "City / Town / Commune"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Commune"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "RU",
+      "country_name": "Russia",
+      "country_flag": "🇷🇺",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Federal Subject / Oblast"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "District"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "RW",
+      "country_name": "Rwanda",
+      "country_flag": "🇷🇼",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "KN",
+      "country_name": "Saint Kitts and Nevis",
+      "country_flag": "🇰🇳",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Parish"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "LC",
+      "country_name": "Saint Lucia",
+      "country_flag": "🇱🇨",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "District"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "VC",
+      "country_name": "Saint Vincent and the Grenadines",
+      "country_flag": "🇻🇨",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Parish"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "WS",
+      "country_name": "Samoa",
+      "country_flag": "🇼🇸",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "District"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "SM",
+      "country_name": "San Marino",
+      "country_flag": "🇸🇲",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Municipality"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "CAP"
+        }
+      ]
+    },
+    {
+      "country_code": "ST",
+      "country_name": "São Tomé and Príncipe",
+      "country_flag": "🇸🇹",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "District"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "SA",
+      "country_name": "Saudi Arabia",
+      "country_flag": "🇸🇦",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province / Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "SN",
+      "country_name": "Senegal",
+      "country_flag": "🇸🇳",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "RS",
+      "country_name": "Serbia",
+      "country_flag": "🇷🇸",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "District"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "SC",
+      "country_name": "Seychelles",
+      "country_flag": "🇸🇨",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "District / Island"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "SL",
+      "country_name": "Sierra Leone",
+      "country_flag": "🇸🇱",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "SG",
+      "country_name": "Singapore",
+      "country_flag": "🇸🇬",
+      "fields": [
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "area",
+          "label": "District / Area"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "SK",
+      "country_name": "Slovakia",
+      "country_flag": "🇸🇰",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "SI",
+      "country_name": "Slovenia",
+      "country_flag": "🇸🇮",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Statistical Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "SB",
+      "country_name": "Solomon Islands",
+      "country_flag": "🇸🇧",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "SO",
+      "country_name": "Somalia",
+      "country_flag": "🇸🇴",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "State / Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "ZA",
+      "country_name": "South Africa",
+      "country_flag": "🇿🇦",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "District Municipality"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "area",
+          "label": "Suburb"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "SS",
+      "country_name": "South Sudan",
+      "country_flag": "🇸🇸",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "State"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "ES",
+      "country_name": "Spain",
+      "country_flag": "🇪🇸",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Autonomous Community"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "Province"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "LK",
+      "country_name": "Sri Lanka",
+      "country_flag": "🇱🇰",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "SD",
+      "country_name": "Sudan",
+      "country_flag": "🇸🇩",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "State"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "SR",
+      "country_name": "Suriname",
+      "country_flag": "🇸🇷",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "District"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "SE",
+      "country_name": "Sweden",
+      "country_flag": "🇸🇪",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "County"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "CH",
+      "country_name": "Switzerland",
+      "country_flag": "🇨🇭",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Canton"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "District"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postcode"
+        }
+      ]
+    },
+    {
+      "country_code": "SY",
+      "country_name": "Syria",
+      "country_flag": "🇸🇾",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Governorate"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "TJ",
+      "country_name": "Tajikistan",
+      "country_flag": "🇹🇯",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "TZ",
+      "country_name": "Tanzania",
+      "country_flag": "🇹🇿",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "District"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "TH",
+      "country_name": "Thailand",
+      "country_flag": "🇹🇭",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "District"
+        },
+        {
+          "value": "city",
+          "label": "City / District"
+        },
+        {
+          "value": "area",
+          "label": "Subdistrict / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "TL",
+      "country_name": "Timor-Leste",
+      "country_flag": "🇹🇱",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Municipality"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "TG",
+      "country_name": "Togo",
+      "country_flag": "🇹🇬",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "TO",
+      "country_name": "Tonga",
+      "country_flag": "🇹🇴",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Division / Island"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "TT",
+      "country_name": "Trinidad and Tobago",
+      "country_flag": "🇹🇹",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "TN",
+      "country_name": "Tunisia",
+      "country_flag": "🇹🇳",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Governorate"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "TR",
+      "country_name": "Türkiye",
+      "country_flag": "🇹🇷",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "District"
+        },
+        {
+          "value": "city",
+          "label": "City / Town"
+        },
+        {
+          "value": "area",
+          "label": "Neighborhood"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "TM",
+      "country_name": "Turkmenistan",
+      "country_flag": "🇹🇲",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "TV",
+      "country_name": "Tuvalu",
+      "country_flag": "🇹🇻",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "State / Province / Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "UG",
+      "country_name": "Uganda",
+      "country_flag": "🇺🇬",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "UA",
+      "country_name": "Ukraine",
+      "country_flag": "🇺🇦",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Oblast"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "Raion"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "AE",
+      "country_name": "United Arab Emirates",
+      "country_flag": "🇦🇪",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Emirate"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "GB",
+      "country_name": "United Kingdom",
+      "country_flag": "🇬🇧",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "County / Region"
+        },
+        {
+          "value": "city",
+          "label": "Post Town"
+        },
+        {
+          "value": "area",
+          "label": "Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postcode"
+        }
+      ]
+    },
+    {
+      "country_code": "US",
+      "country_name": "United States",
+      "country_flag": "🇺🇸",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "State"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "County"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "area",
+          "label": "Neighborhood"
+        },
+        {
+          "value": "postal_code",
+          "label": "ZIP Code"
+        }
+      ]
+    },
+    {
+      "country_code": "UY",
+      "country_name": "Uruguay",
+      "country_flag": "🇺🇾",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Department"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "UZ",
+      "country_name": "Uzbekistan",
+      "country_flag": "🇺🇿",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Region"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "VU",
+      "country_name": "Vanuatu",
+      "country_flag": "🇻🇺",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "VE",
+      "country_name": "Venezuela",
+      "country_flag": "🇻🇪",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "State"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "VN",
+      "country_name": "Vietnam",
+      "country_flag": "🇻🇳",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province / Municipality"
+        },
+        {
+          "value": "admin_area_2",
+          "label": "District"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "area",
+          "label": "Ward / Commune"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "YE",
+      "country_name": "Yemen",
+      "country_flag": "🇾🇪",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Governorate"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "ZM",
+      "country_name": "Zambia",
+      "country_flag": "🇿🇲",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "ZW",
+      "country_name": "Zimbabwe",
+      "country_flag": "🇿🇼",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Province / City"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        }
+      ]
+    },
+    {
+      "country_code": "VA",
+      "country_name": "Holy See",
+      "country_flag": "🇻🇦",
+      "fields": [
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    },
+    {
+      "country_code": "PS",
+      "country_name": "State of Palestine",
+      "country_flag": "🇵🇸",
+      "fields": [
+        {
+          "value": "admin_area_1",
+          "label": "Governorate"
+        },
+        {
+          "value": "city",
+          "label": "City / Town / Locality"
+        },
+        {
+          "value": "postal_code",
+          "label": "Postal Code"
+        }
+      ]
+    }
+  ]
+}
