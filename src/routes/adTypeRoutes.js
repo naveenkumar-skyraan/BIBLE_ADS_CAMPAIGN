@@ -25,7 +25,7 @@ const router = express.Router();
  *                 data:
  *                   type: array
  *                   items:
- *                     $ref: '#/components/schemas/AdType'
+ *                     $ref: '#/components/schemas/AdTypeResponse'
  *       500:
  *         description: Internal server error.
  */
