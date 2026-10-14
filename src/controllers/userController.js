@@ -51,7 +51,9 @@ export const signupController = async (req, res) => {
       message: "OTP generated successfully",
       data: {
         user_id: result.userId,
-        otp: result.otp,
+        ...(process.env.STATIC_OTP?.trim().toLowerCase() === "true"
+          ? { otp: result.otp }
+          : {}),
       },
     });
   } catch (error) {
@@ -141,7 +143,9 @@ export const resendOtpController = async (req, res) => {
       success: true,
       message: "OTP generated successfully.",
       data: {
-        otp: result.otp,
+        ...(process.env.STATIC_OTP?.trim().toLowerCase() === "true"
+          ? { otp: result.otp }
+          : {}),
       },
     });
   } catch (error) {
@@ -285,7 +289,9 @@ export const forgotPasswordController = async (req, res) => {
       success: true,
       message: "OTP generated for password reset.",
       data: {
-        otp: result.otp,
+        ...(process.env.STATIC_OTP?.trim().toLowerCase() === "true"
+          ? { otp: result.otp }
+          : {}),
       },
     });
   } catch (error) {
@@ -378,92 +384,82 @@ export const deleteAccountController = async (req, res) => {
 };
 
 export const changePasswordController = async (req, res) => {
-    try {
-        const { error, value } = validate(
-            changePasswordSchema,
-            req.body
-        );
+  try {
+    const { error, value } = validate(changePasswordSchema, req.body);
 
-        if (error) {
-            return res.status(400).json({
-                success: false,
-                message: "Validation failed",
-                errors: error.details.map(
-                    (detail) => detail.message
-                )
-            });
-        }
-
-        await changePassword({
-            userId: req.user.id,
-            currentPassword: value.current_password,
-            newPassword: value.new_password
-        });
-
-        return res.status(200).json({
-            success: true,
-            message: "Password changed successfully. Please log in again."
-        });
-    } catch (error) {
-        const statusCodes = {
-            USER_NOT_FOUND: 404,
-            ACCOUNT_DELETION_PENDING: 409,
-            INVALID_CURRENT_PASSWORD: 401,
-            PASSWORD_UNCHANGED: 400
-        };
-
-        return res.status(statusCodes[error.code] || 500).json({
-            success: false,
-            code: error.code,
-            message: statusCodes[error.code]
-                ? error.message
-                : "Internal server error"
-        });
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: "Validation failed",
+        errors: error.details.map((detail) => detail.message),
+      });
     }
+
+    await changePassword({
+      userId: req.user.id,
+      currentPassword: value.current_password,
+      newPassword: value.new_password,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Password changed successfully. Please log in again.",
+    });
+  } catch (error) {
+    const statusCodes = {
+      USER_NOT_FOUND: 404,
+      ACCOUNT_DELETION_PENDING: 409,
+      INVALID_CURRENT_PASSWORD: 401,
+      PASSWORD_UNCHANGED: 400,
+    };
+
+    return res.status(statusCodes[error.code] || 500).json({
+      success: false,
+      code: error.code,
+      message: statusCodes[error.code]
+        ? error.message
+        : "Internal server error",
+    });
+  }
 };
 
 export const accountDeletionFeedbackController = async (req, res) => {
-    try {
-        const { error, value } = validate(
-            accountDeletionFeedbackSchema,
-            req.body
-        );
+  try {
+    const { error, value } = validate(accountDeletionFeedbackSchema, req.body);
 
-        if (error) {
-            return res.status(400).json({
-                success: false,
-                message: "Validation failed",
-                errors: error.details.map(
-                    (detail) => detail.message
-                )
-            });
-        }
-
-        const result = await submitAccountDeletionFeedback({
-            userId: req.user.id,
-            reason: value.reason,
-            other_reason: value.other_reason
-        });
-
-        return res.status(201).json({
-            success: true,
-            message: "Account deletion feedback submitted successfully.",
-            data: {
-                feedback_id: result.feedbackId
-            }
-        });
-    } catch (error) {
-        const statusCodes = {
-            USER_NOT_FOUND: 404,
-            ACCOUNT_DELETION_PENDING: 409
-        };
-
-        return res.status(statusCodes[error.code] || 500).json({
-            success: false,
-            code: error.code,
-            message: statusCodes[error.code]
-                ? error.message
-                : "Internal server error"
-        });
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: "Validation failed",
+        errors: error.details.map((detail) => detail.message),
+      });
     }
+
+    const result = await submitAccountDeletionFeedback({
+      userId: req.user.id,
+      reason: value.reason,
+      other_reason: value.other_reason,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Account deletion feedback submitted successfully.",
+      data: {
+        feedback_id: result.feedbackId,
+      },
+    });
+  } catch (error) {
+    const statusCodes = {
+      USER_NOT_FOUND: 404,
+      ACCOUNT_DELETION_PENDING: 409,
+    };
+
+    return res.status(statusCodes[error.code] || 500).json({
+      success: false,
+      code: error.code,
+      message: statusCodes[error.code]
+        ? error.message
+        : "Internal server error",
+    });
+  }
 };

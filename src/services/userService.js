@@ -17,6 +17,8 @@ import {
   createAccountDeletionFeedback,
 } from "../models/userModel.js";
 
+import { sendSmsOTP } from "./sms.js";
+
 const REFRESH_SESSION_DAYS = Number(process.env.JWT_REFRESH_DAYS);
 
 const generateOtp = () => {
@@ -24,6 +26,19 @@ const generateOtp = () => {
     return "1234";
   }
   return crypto.randomInt(1000, 10000).toString();
+};
+
+const deliverOtp = async (phone, otp) => {
+  if (process.env.STATIC_OTP?.trim().toLowerCase() === "true") {
+    return;
+  }
+
+  const result = await sendSmsOTP(phone, otp);
+
+  if (result?.return !== true) {
+    console.error("SMS request failed:", result);
+    throw new Error("Failed to send OTP SMS.");
+  }
 };
 
 const getOtpExpiry = () => {
@@ -154,6 +169,8 @@ export const signup = async ({ name, phone, password }) => {
       otpPurpose: "signup",
     });
 
+    await deliverOtp(phone, otp);
+
     return {
       userId: existingUser.id,
       otp,
@@ -172,6 +189,8 @@ export const signup = async ({ name, phone, password }) => {
     otpExpiresAt,
     otpPurpose: "signup",
   });
+
+  await deliverOtp(phone, otp);
 
   return {
     userId,
@@ -296,6 +315,8 @@ export const resendOtp = async ({ phone, purpose }) => {
     otpExpiresAt,
     otpPurpose: purpose,
   });
+
+  await deliverOtp(phone, otp);
 
   return {
     otp,
@@ -492,6 +513,8 @@ export const forgotPassword = async (phone) => {
     otpExpiresAt,
     otpPurpose: "forgot_password",
   });
+
+  await deliverOtp(phone, otp);
 
   return {
     otp,
