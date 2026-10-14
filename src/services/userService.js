@@ -118,7 +118,7 @@ export const signup = async ({ name, phone, password }) => {
   const existingUser = await findUserByPhone(phone);
 
   if (existingUser) {
-    if (existingUser.is_account_deleted === 1) {
+    if (Number(existingUser.is_account_deleted) === 1) {
       const deletionDate = new Date(existingUser.account_deleted_at);
 
       const expiryDate = new Date(
@@ -131,22 +131,34 @@ export const signup = async ({ name, phone, password }) => {
         );
 
         error.code = "ACCOUNT_DELETION_PENDING";
-
         throw error;
       }
     }
 
-    const error = new Error("Phone number is already registered.");
+    if (Number(existingUser.is_phone_verified) === 1) {
+      const error = new Error("Phone number is already registered.");
+      error.code = "PHONE_ALREADY_REGISTERED";
+      throw error;
+    }
 
-    error.code = "PHONE_ALREADY_REGISTERED";
+    const otp = generateOtp();
+    const otpExpiresAt = getOtpExpiry();
 
-    throw error;
+    await updateOtp({
+      userId: existingUser.id,
+      otp,
+      otpExpiresAt,
+      otpPurpose: "signup",
+    });
+
+    return {
+      userId: existingUser.id,
+      otp,
+    };
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
-
   const otp = generateOtp();
-
   const otpExpiresAt = getOtpExpiry();
 
   const userId = await createUser({
