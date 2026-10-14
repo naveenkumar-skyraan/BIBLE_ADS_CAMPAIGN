@@ -20,6 +20,9 @@ import {
 const REFRESH_SESSION_DAYS = Number(process.env.JWT_REFRESH_DAYS);
 
 const generateOtp = () => {
+  if (process.env.STATIC_OTP?.trim().toLowerCase() === "true") {
+    return "1234";
+  }
   return crypto.randomInt(1000, 10000).toString();
 };
 
