@@ -59,20 +59,37 @@ export const createUser = async ({
   otp,
   otpExpiresAt,
   otpPurpose,
+  isOauthLogin = 0,
+  oauthProviderId = null,
+  oauthProvider = 0,
 }) => {
   const [result] = await pool.execute(
     `INSERT INTO users
-        (
-            name,
-            phone,
-            password_hash,
-            is_phone_verified,
-            otp,
-            otp_expires_at,
-            otp_purpose
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [name, phone, passwordHash, 0, otp, otpExpiresAt, otpPurpose],
+      (
+        name,
+        phone,
+        password_hash,
+        is_phone_verified,
+        otp,
+        otp_expires_at,
+        otp_purpose,
+        is_oauth_login,
+        oauth_provider_id,
+        oauth_provider
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      name,
+      phone,
+      passwordHash,
+      0,
+      otp,
+      otpExpiresAt,
+      otpPurpose,
+      isOauthLogin,
+      oauthProviderId,
+      oauthProvider,
+    ],
   );
 
   return result.insertId;

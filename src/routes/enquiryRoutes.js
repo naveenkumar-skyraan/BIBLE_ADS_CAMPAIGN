@@ -14,7 +14,6 @@ const router = express.Router();
  *     description: Submit a new business enquiry. The enquiry is created with a pending status by default. A duplicate enquiry is rejected if an existing enquiry with the same email, business name, and phone has a pending or contacted status.
  *     tags:
  *       - Enquiries
- *     security: []
  *     requestBody:
  *       required: true
  *       content:

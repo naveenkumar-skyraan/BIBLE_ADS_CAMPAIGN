@@ -33,7 +33,6 @@ const router = express.Router();
  *   get:
  *     summary: Get all supported countries and their field configuration
  *     tags: [Countries]
- *     security: []
  *     responses:
  *       200:
  *         description: Countries retrieved successfully
@@ -46,7 +45,6 @@ router.get("/countries", businessDetailController.getCountries);
  *   get:
  *     summary: Get country configuration by country code
  *     tags: [Countries]
- *     security: []
  *     parameters:
  *       - in: path
  *         name: country_code
@@ -75,7 +73,6 @@ router.get(
  *     summary: Get location dropdown options
  *     description: Uses the selected country's field configuration and GeoNames records. Data is read from MySQL when matching location rows exist; otherwise, GeoNames is queried and the results are cached.
  *     tags: [Location]
- *     security: []
  *     parameters:
  *       - in: query
  *         name: country_code

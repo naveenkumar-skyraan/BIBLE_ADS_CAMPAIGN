@@ -19,6 +19,12 @@ import adActionButtonRoutes from "./src/routes/adActionButtonRoutes.js";
 import walletRoutes from "./src/routes/walletRoutes.js";
 import profileRoutes from "./src/routes/profileRoutes.js";
 
+import faqRoutes from "./src/routes/faqRoutes.js";
+import adminFaqRoutes from "./src/routes/adminFaqRoutes.js";
+import issueReportRoutes from "./src/routes/issueReportRoutes.js";
+import adminIssueReportRoutes from "./src/routes/adminIssueReportRoutes.js";
+
+
 import errorHandler from "./src/middleware/errorHandler.js";
 
 import swaggerDocument from "./src/configs/swagger/swagger.js";
@@ -70,6 +76,11 @@ app.use("/api/business-details", businessDetailRoutes);
 
 app.use("/api/wallet", walletRoutes);
 app.use("/api/settings", profileRoutes);
+
+app.use("/api/faqs", faqRoutes);
+app.use("/api/admin/faqs", adminFaqRoutes);
+app.use("/api/issue-reports", issueReportRoutes);
+app.use("/api/admin/issue-reports", adminIssueReportRoutes);
 
 app.use(errorHandler);
 

@@ -9,6 +9,8 @@ import businessDetailSchema from "../../swaggerSchemas/businessDetailSchema.js";
 import walletSchema from "../../swaggerSchemas/walletSchema.js";
 import adSchema from "../../swaggerSchemas/adSchema.js";
 import profileSchema from "../../swaggerSchemas/profileSchema.js";
+import faqSchema from "../../swaggerSchemas/faqSchema.js";
+import issueReportSchema from "../../swaggerSchemas/issueReportSchema.js";
 
 const options = {
   definition: {
@@ -71,12 +73,33 @@ const options = {
         AdTypeResponse: adSchema.AdTypeResponse,
         AdObjectiveResponse: adSchema.AdObjectiveResponse,
         AdActionButtonResponse: adSchema.AdActionButtonResponse,
-
         GetAdTypesResponse: adSchema.GetAdTypesResponse,
         GetAdObjectivesResponse: adSchema.GetAdObjectivesResponse,
         GetAdActionButtonsResponse: adSchema.GetAdActionButtonsResponse,
+
         UpdateProfileRequest: profileSchema.UpdateProfileRequest,
         ProfileResponse: profileSchema.ProfileResponse,
+
+        FAQCategory: faqSchema.FAQCategory,
+        FAQQuestion: faqSchema.FAQQuestion,
+        FAQQuestionDetail: faqSchema.FAQQuestionDetail,
+        FAQCategoriesResponse: faqSchema.FAQCategoriesResponse,
+        FAQQuestionsResponse: faqSchema.FAQQuestionsResponse,
+        FAQQuestionDetailResponse: faqSchema.FAQQuestionDetailResponse,
+
+        IssueType: issueReportSchema.IssueType,
+        CreateIssueTypeRequest: issueReportSchema.CreateIssueTypeRequest,
+        UpdateIssueTypeRequest: issueReportSchema.UpdateIssueTypeRequest,
+        UpdateIssueTypeStatusRequest:
+          issueReportSchema.UpdateIssueTypeStatusRequest,
+        UpdateReportedIssueStatusRequest:
+          issueReportSchema.UpdateReportedIssueStatusRequest,
+        IssueReport: issueReportSchema.IssueReport,
+        IssueTypesResponse: issueReportSchema.IssueTypesResponse,
+        IssueTypeResponse: issueReportSchema.IssueTypeResponse,
+        IssueReportResponse: issueReportSchema.IssueReportResponse,
+        IssueReportsResponse: issueReportSchema.IssueReportsResponse,
+
         ChangePasswordRequest: {
           type: "object",
           required: ["current_password", "new_password", "confirm_password"],
