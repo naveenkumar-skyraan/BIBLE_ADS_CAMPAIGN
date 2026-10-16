@@ -148,7 +148,7 @@ export const socialLogin = async ({
       email,
       passwordHash: "",
       otp: "",
-      otpExpiresAt: "",
+      otpExpiresAt: null,
       otpPurpose: "",
       isOauthLogin: 1,
       oauthProviderId: providerUserId,
