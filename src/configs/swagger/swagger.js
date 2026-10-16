@@ -47,6 +47,7 @@ const options = {
         DeleteAccountRequest: authSchema.DeleteAccountRequest,
         SuccessResponse: authSchema.SuccessResponse,
         ErrorResponse: authSchema.ErrorResponse,
+        LoginUserResponse: authSchema.LoginUserResponse,
 
         CreateEnquiryRequest: enquirySchema.CreateEnquiryRequest,
         EnquiryResponse: enquirySchema.EnquiryResponse,
