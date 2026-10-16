@@ -144,7 +144,7 @@ export const socialLogin = async ({
   } else {
     const userId = await createUser({
       name,
-      phone: "",
+      phone: null,
       email,
       passwordHash: "",
       otp: null,

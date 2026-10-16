@@ -56,7 +56,7 @@ export const findUserById = async (id) => {
 
 export const createUser = async ({
   name,
-  phone = "",
+  phone = null,
   email = "",
   passwordHash = "",
   otp = "",
@@ -84,7 +84,7 @@ export const createUser = async ({
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       name,
-      phone || "",
+      phone ?? null,
       email || "",
       passwordHash || "",
       0,
