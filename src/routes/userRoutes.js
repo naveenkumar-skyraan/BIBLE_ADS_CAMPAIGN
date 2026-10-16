@@ -107,6 +107,26 @@ router.post("/resend-otp", resendOtpController);
  *     responses:
  *       200:
  *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Login successful
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       $ref: '#/components/schemas/LoginUserResponse'
+ *                     access_token:
+ *                       type: string
+ *                     refresh_token:
+ *                       type: string
  *       400:
  *         description: Validation failed
  *       401:

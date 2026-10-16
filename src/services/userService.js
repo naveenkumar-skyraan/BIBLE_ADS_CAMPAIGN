@@ -17,6 +17,8 @@ import {
   createAccountDeletionFeedback,
 } from "../models/userModel.js";
 
+import { hasBusinessByUserId } from "../models/businessDetailModel.js";
+
 import { sendSmsOTP } from "./sms.js";
 
 const REFRESH_SESSION_DAYS = Number(process.env.JWT_REFRESH_DAYS);
@@ -381,12 +383,15 @@ export const login = async ({ phone, password, reactivate }) => {
   }
 
   const tokens = await createTokens(user.id);
+  const has_business = await hasBusinessByUserId(user.id);
 
   return {
     user: {
       id: user.id,
       name: user.name,
-      phone: user.phone,
+      phone: user.phone || "",
+      email: user.email || "",
+      has_business,
     },
     ...tokens,
   };

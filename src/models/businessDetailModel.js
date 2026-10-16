@@ -157,4 +157,16 @@ const businessDetailModel = {
   },
 };
 
+export const hasBusinessByUserId = async (userId) => {
+  const [rows] = await pool.execute(
+    `SELECT id
+     FROM business_details
+     WHERE user_id = ?
+     LIMIT 1`,
+    [userId],
+  );
+
+  return rows.length > 0 ? 1 : 0;
+};
+
 export default businessDetailModel;

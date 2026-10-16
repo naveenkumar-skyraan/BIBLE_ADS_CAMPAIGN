@@ -3,13 +3,19 @@ import {
   createSocialAccount,
 } from "../models/socialAccountModel.js";
 
+import { hasBusinessByUserId } from "../models/businessDetailModel.js";
+
 import {
   findAccountByUserId,
   createAccount,
   updateAccount,
 } from "../models/accountModel.js";
 
-import { findUserById, createUser } from "../models/userModel.js";
+import {
+  findUserById,
+  createUser,
+  updateUserEmailIfEmpty,
+} from "../models/userModel.js";
 
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
@@ -100,6 +106,7 @@ export const socialLogin = async ({
   provider,
   providerUserId,
   name,
+  email = "",
   deviceId,
   deviceToken,
   deviceType,
@@ -129,14 +136,20 @@ export const socialLogin = async ({
 
       throw error;
     }
+
+    if (email && email.trim() && !user.email) {
+      await updateUserEmailIfEmpty(user.id, email.trim());
+      user = await findUserById(user.id);
+    }
   } else {
     const userId = await createUser({
       name,
-      phone: null,
-      passwordHash: null,
-      otp: null,
-      otpExpiresAt: null,
-      otpPurpose: null,
+      phone: "",
+      email,
+      passwordHash: "",
+      otp: "",
+      otpExpiresAt: "",
+      otpPurpose: "",
       isOauthLogin: 1,
       oauthProviderId: providerUserId,
       oauthProvider: provider,
@@ -170,12 +183,15 @@ export const socialLogin = async ({
   }
 
   const tokens = await createSocialTokens(user.id);
+  const has_business = await hasBusinessByUserId(user.id);
 
   return {
     user: {
       id: user.id,
-      name: user.name,
-      phone: user.phone,
+      name: user.name || "",
+      phone: user.phone || "",
+      email: user.email || "",
+      has_business,
     },
     ...tokens,
   };

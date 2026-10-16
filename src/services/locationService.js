@@ -270,13 +270,6 @@ async function requestGeoNames(endpoint, query = {}) {
 
   params.set("username", GEONAMES_USERNAME);
 
-  console.log(
-    `[GEONAMES API HIT] ${endpoint}`,
-    Object.fromEntries(
-      [...params.entries()].filter(([key]) => key !== "username"),
-    ),
-  );
-
   let response;
   let result;
 
@@ -803,9 +796,6 @@ async function getChildrenOptions({
   const existingPayload = getPayload(parentRecord);
 
   if (Array.isArray(existingPayload)) {
-    console.log(
-      `[LOCATION SOURCE: MYSQL PAYLOAD] ${countryCode} ${fieldKey} parent_id=${parentRecord.id}`,
-    );
 
     const normalizedPayload = await normalizeChildrenPayload(
       parentRecord,
@@ -833,10 +823,6 @@ async function getChildrenOptions({
       [parentRecord.id, countryCode],
     );
   }
-
-  console.log(
-    `[LOCATION SOURCE: GEONAMES] ${countryCode} ${fieldKey} parent_id=${parentRecord.id}`,
-  );
 
   const providerRecords = await fetchChildRecords({
     countryCode,
@@ -961,16 +947,9 @@ const locationService = {
       );
 
       if (cachedRows.length > 0) {
-        console.log(
-          `[LOCATION SOURCE: MYSQL] ${normalizedCountryCode} ${fieldKey}`,
-        );
 
         return uniqueOptionsByGeoNamesId(cachedRows.map(rowToOption));
       }
-
-      console.log(
-        `[LOCATION SOURCE: GEONAMES] ${normalizedCountryCode} ${fieldKey}`,
-      );
 
       const providerRecords = await fetchRootRecords(
         normalizedCountryCode,

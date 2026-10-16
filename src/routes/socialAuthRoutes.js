@@ -41,6 +41,11 @@ const router = express.Router();
  *                 type: string
  *                 maxLength: 100
  *                 example: "John Doe"
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 nullable: true
+ *                 example: "john@example.com"
  *               deviceId:
  *                 type: string
  *                 example: "device-123456"
@@ -55,6 +60,26 @@ const router = express.Router();
  *     responses:
  *       200:
  *         description: Social signup or login successful.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Social login successful
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       $ref: '#/components/schemas/LoginUserResponse'
+ *                     accessToken:
+ *                       type: string
+ *                     refreshToken:
+ *                       type: string
  *       401:
  *         description: Refresh session error.
  *       403:
@@ -64,6 +89,7 @@ const router = express.Router();
  *       500:
  *         description: Social login failed.
  */
+
 router.post("/social-login", socialLoginController);
 
 export default router;

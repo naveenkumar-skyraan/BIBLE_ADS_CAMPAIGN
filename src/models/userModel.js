@@ -6,6 +6,7 @@ export const findUserByPhone = async (phone) => {
             id,
             name,
             phone,
+            email,
             password_hash,
             is_phone_verified,
             otp,
@@ -32,6 +33,7 @@ export const findUserById = async (id) => {
             id,
             name,
             phone,
+            email,
             password_hash,
             is_phone_verified,
             otp,
@@ -54,13 +56,14 @@ export const findUserById = async (id) => {
 
 export const createUser = async ({
   name,
-  phone,
-  passwordHash,
-  otp,
-  otpExpiresAt,
-  otpPurpose,
+  phone = "",
+  email = "",
+  passwordHash = "",
+  otp = "",
+  otpExpiresAt = "",
+  otpPurpose = "",
   isOauthLogin = 0,
-  oauthProviderId = null,
+  oauthProviderId = "",
   oauthProvider = 0,
 }) => {
   const [result] = await pool.execute(
@@ -68,6 +71,7 @@ export const createUser = async ({
       (
         name,
         phone,
+        email,
         password_hash,
         is_phone_verified,
         otp,
@@ -77,17 +81,18 @@ export const createUser = async ({
         oauth_provider_id,
         oauth_provider
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       name,
-      phone,
-      passwordHash,
+      phone || "",
+      email || "",
+      passwordHash || "",
       0,
-      otp,
-      otpExpiresAt,
-      otpPurpose,
+      otp || "",
+      otpExpiresAt || "",
+      otpPurpose || "",
       isOauthLogin,
-      oauthProviderId,
+      oauthProviderId || "",
       oauthProvider,
     ],
   );
@@ -221,4 +226,16 @@ export const createAccountDeletionFeedback = async ({
   );
 
   return result.insertId;
+};
+
+export const updateUserEmailIfEmpty = async (userId, email) => {
+  if (!email) return;
+
+  await pool.execute(
+    `UPDATE users
+     SET email = ?, updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?
+       AND (email IS NULL OR email = '')`,
+    [email, userId],
+  );
 };
