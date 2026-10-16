@@ -193,6 +193,7 @@ export const socialLogin = async ({
       email: user.email || "",
       has_business,
     },
-    ...tokens,
+    access_token: tokens.accessToken,
+    refresh_token: tokens.refreshToken,
   };
 };

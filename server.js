@@ -24,6 +24,10 @@ import adminFaqRoutes from "./src/routes/adminFaqRoutes.js";
 import issueReportRoutes from "./src/routes/issueReportRoutes.js";
 import adminIssueReportRoutes from "./src/routes/adminIssueReportRoutes.js";
 
+import chatRoutes from "./src/routes/chatRoutes.js";
+
+import { createServer } from "node:http";
+import { initializeChatSocket } from "./src/sockets/chatSocket.js";
 
 import errorHandler from "./src/middleware/errorHandler.js";
 
@@ -82,14 +86,20 @@ app.use("/api/admin/faqs", adminFaqRoutes);
 app.use("/api/issue-reports", issueReportRoutes);
 app.use("/api/admin/issue-reports", adminIssueReportRoutes);
 
+app.use("/api/chat", chatRoutes);
+
 app.use(errorHandler);
 
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 startAccountDeletionJob();
 
+const httpServer = createServer(app);
+
+initializeChatSocket(httpServer);
+
 const PORT = process.env.PORT;
 
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
