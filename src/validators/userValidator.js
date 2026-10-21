@@ -1,12 +1,5 @@
 import Joi from "joi";
 
-export const sendSignupOtpSchema = Joi.object({
-  phone: Joi.string()
-    .trim()
-    .pattern(/^[0-9]{10}$/)
-    .required(),
-});
-
 export const signupSchema = Joi.object({
   name: Joi.string().trim().min(2).max(100).required(),
 
@@ -23,10 +16,18 @@ export const verifyOtpSchema = Joi.object({
     .trim()
     .pattern(/^[0-9]{10}$/)
     .required(),
-
   otp: Joi.string()
-    .pattern(/^[0-9]{4}$/)
+    .trim()
+    .pattern(/^[0-9]{4,6}$/)
     .required(),
+  purpose: Joi.string()
+    .valid("signup", "forgot_password", "profile")
+    .optional(),
+  challenge_token: Joi.string().when("purpose", {
+    is: "profile",
+    then: Joi.required(),
+    otherwise: Joi.optional(),
+  }),
 });
 
 export const resendOtpSchema = Joi.object({
@@ -35,7 +36,9 @@ export const resendOtpSchema = Joi.object({
     .pattern(/^[0-9]{10}$/)
     .required(),
 
-  purpose: Joi.string().valid("signup", "forgot_password", "profile").required(),
+  purpose: Joi.string()
+    .valid("signup", "forgot_password", "profile")
+    .required(),
 });
 
 export const loginSchema = Joi.object({

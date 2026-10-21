@@ -9,4 +9,6 @@ export const updateProfileSchema = Joi.object({
     .required(),
 
   email: Joi.string().trim().email().max(255).allow("", null).optional(),
+
+  phone_verification_token: Joi.string().optional(),
 });

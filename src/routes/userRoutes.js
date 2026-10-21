@@ -1,7 +1,6 @@
 import express from "express";
 
 import {
-  sendSignupOtpController,
   signupController,
   verifyOtpController,
   resendOtpController,
@@ -18,31 +17,6 @@ import {
 import { middleware } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
-
-/**
- * @swagger
- * /api/auth/signup/send-otp:
- *   post:
- *     tags:
- *       - Authentication
- *     summary: Send OTP for signup
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/SignupOtpRequest'
- *     responses:
- *       200:
- *         description: OTP sent successfully
- *       400:
- *         description: Validation failed
- *       409:
- *         description: Phone already registered or account deletion pending
- *       500:
- *         description: Failed to send OTP
- */
-router.post("/signup/send-otp", sendSignupOtpController);
 
 /**
  * @swagger
@@ -90,8 +64,17 @@ router.post("/signup", signupController);
  *       409:
  *         description: Account deletion pending
  */
-router.post("/verify-otp", verifyOtpController);
+router.post(
+  "/verify-otp",
+  (req, res, next) => {
+    if (req.body?.purpose === "profile") {
+      return middleware(req, res, next);
+    }
 
+    return next();
+  },
+  verifyOtpController,
+);
 /**
  * @swagger
  * /api/auth/resend-otp:
@@ -115,8 +98,17 @@ router.post("/verify-otp", verifyOtpController);
  *       409:
  *         description: Phone already verified or account deletion pending
  */
-router.post("/resend-otp", resendOtpController);
+router.post(
+  "/resend-otp",
+  (req, res, next) => {
+    if (req.body?.purpose === "profile") {
+      return middleware(req, res, next);
+    }
 
+    return next();
+  },
+  resendOtpController,
+);
 /**
  * @swagger
  * /api/auth/login:

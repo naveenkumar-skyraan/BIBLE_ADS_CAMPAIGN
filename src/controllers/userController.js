@@ -1,5 +1,4 @@
 import {
-  sendSignupOtp,
   signup,
   verifyOtp,
   resendOtp,
@@ -14,7 +13,6 @@ import {
 } from "../services/userService.js";
 
 import {
-  sendSignupOtpSchema,
   signupSchema,
   verifyOtpSchema,
   resendOtpSchema,
@@ -34,47 +32,6 @@ const validate = (schema, body) => {
   });
 };
 
-export const sendSignupOtpController = async (req, res) => {
-  try {
-    const { error, value } = validate(sendSignupOtpSchema, req.body);
-
-    if (error) {
-      return res.status(400).json({
-        success: false,
-        message: "Validation failed",
-        errors: error.details.map((detail) => detail.message),
-      });
-    }
-
-    const result = await sendSignupOtp(value);
-
-    return res.status(200).json({
-      success: true,
-      message: "OTP sent successfully.",
-      data: {
-        user_id: result.userId,
-        ...(process.env.STATIC_OTP?.trim().toLowerCase() === "true"
-          ? { otp: result.otp }
-          : {}),
-      },
-    });
-  } catch (error) {
-    const statusCodes = {
-      PHONE_ALREADY_REGISTERED: 409,
-      ACCOUNT_DELETION_PENDING: 409,
-    };
-
-    console.error(error);
-
-    return res.status(statusCodes[error.code] || 500).json({
-      success: false,
-      code: error.code,
-      message: statusCodes[error.code]
-        ? error.message
-        : "Internal server error",
-    });
-  }
-};
 
 export const signupController = async (req, res) => {
   try {
@@ -130,12 +87,25 @@ export const verifyOtpController = async (req, res) => {
       });
     }
 
-    const result = await verifyOtp(value);
+    const result = await verifyOtp({
+      ...value,
+      userId: value.purpose === "profile" ? req.user?.id : undefined,
+    });
 
     if (result.purpose === "signup") {
       return res.status(200).json({
         success: true,
         message: "Phone number verified successfully.",
+      });
+    }
+
+    if (result.purpose === "profile") {
+      return res.status(200).json({
+        success: true,
+        message: "Phone number verified successfully.",
+        data: {
+          phone_verification_token: result.verificationToken,
+        },
       });
     }
 
@@ -154,6 +124,8 @@ export const verifyOtpController = async (req, res) => {
       OTP_EXPIRED: 400,
       INVALID_OTP: 400,
       INVALID_OTP_PURPOSE: 400,
+      INVALID_PROFILE_CHALLENGE: 401,
+      PROFILE_PHONE_NOT_ALLOWED: 403,
     };
 
     return res.status(statusCodes[error.code] || 500).json({
@@ -178,7 +150,10 @@ export const resendOtpController = async (req, res) => {
       });
     }
 
-    const result = await resendOtp(value);
+    const result = await resendOtp({
+      ...value,
+      userId: value.purpose === "profile" ? req.user?.id : undefined,
+    });
 
     return res.status(200).json({
       success: true,
@@ -187,6 +162,9 @@ export const resendOtpController = async (req, res) => {
         ...(process.env.STATIC_OTP?.trim().toLowerCase() === "true"
           ? { otp: result.otp }
           : {}),
+        ...(result.challengeToken
+          ? { challenge_token: result.challengeToken }
+          : {}),
       },
     });
   } catch (error) {
@@ -194,6 +172,9 @@ export const resendOtpController = async (req, res) => {
       USER_NOT_FOUND: 404,
       ACCOUNT_DELETION_PENDING: 409,
       PHONE_ALREADY_VERIFIED: 409,
+      PHONE_ALREADY_REGISTERED: 409,
+      PROFILE_PHONE_NOT_ALLOWED: 403,
+      AUTHENTICATION_REQUIRED: 401,
     };
 
     return res.status(statusCodes[error.code] || 500).json({

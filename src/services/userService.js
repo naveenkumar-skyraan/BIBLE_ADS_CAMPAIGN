@@ -137,63 +137,6 @@ const throwError = (message, code) => {
   throw error;
 };
 
-export const sendSignupOtp = async ({ phone }) => {
-  const existingUser = await findUserByPhone(phone);
-
-  if (existingUser) {
-    if (Number(existingUser.is_account_deleted) === 1) {
-      throwError(
-        "Account is pending deletion. Please reactivate the account by logging in.",
-        "ACCOUNT_DELETION_PENDING",
-      );
-    }
-
-    if (Number(existingUser.is_phone_verified) === 1) {
-      throwError(
-        "Phone number is already registered.",
-        "PHONE_ALREADY_REGISTERED",
-      );
-    }
-  }
-
-  const otp = generateOtp();
-  const otpExpiresAt = getOtpExpiry();
-
-  let userId;
-
-  if (existingUser) {
-    userId = existingUser.id;
-
-    await updateOtp({
-      userId,
-      otp,
-      otpExpiresAt,
-      otpPurpose: "signup",
-    });
-  } else {
-    userId = await createUser({
-      name: "",
-      phone,
-      passwordHash: "",
-      otp,
-      otpExpiresAt,
-      otpPurpose: "signup",
-    });
-  }
-
-  try {
-    await deliverOtp(phone, otp);
-  } catch (error) {
-    await clearOtp(userId);
-    throw error;
-  }
-
-  return {
-    userId,
-    ...(process.env.STATIC_OTP?.trim().toLowerCase() === "true" ? { otp } : {}),
-  };
-};
-
 export const signup = async ({ name, phone, password }) => {
   const existingUser = await findUserByPhone(phone);
 
@@ -255,14 +198,96 @@ export const signup = async ({ name, phone, password }) => {
   };
 };
 
-export const verifyOtp = async ({ phone, otp }) => {
+export const verifyOtp = async ({
+  phone,
+  otp,
+  purpose: requestedPurpose,
+  challenge_token: challengeToken,
+  userId,
+}) => {
+  if (requestedPurpose === "profile") {
+    let decoded;
+
+    try {
+      decoded = jwt.verify(challengeToken, process.env.JWT_ACCESS_SECRET);
+    } catch {
+      throwError(
+        "Invalid or expired profile verification challenge.",
+        "INVALID_PROFILE_CHALLENGE",
+      );
+    }
+
+    if (
+      decoded.type !== "profile_phone_verification" ||
+      Number(decoded.sub) !== Number(userId) ||
+      decoded.phone !== phone
+    ) {
+      throwError(
+        "Invalid profile verification challenge.",
+        "INVALID_PROFILE_CHALLENGE",
+      );
+    }
+
+    const user = await findUserById(userId);
+
+    if (!user) {
+      throwError("User not found.", "USER_NOT_FOUND");
+    }
+
+    if (Number(user.is_account_deleted) === 1) {
+      throwError("Account is pending deletion.", "ACCOUNT_DELETION_PENDING");
+    }
+
+    if (Number(user.is_oauth_login) !== 1) {
+      throwError(
+        "Only social login users can add a phone number.",
+        "PROFILE_PHONE_NOT_ALLOWED",
+      );
+    }
+
+    if (user.otp_purpose !== "profile") {
+      throwError("No active profile OTP found.", "OTP_NOT_FOUND");
+    }
+
+    if (!user.otp || !user.otp_expires_at) {
+      throwError("No active OTP found.", "OTP_NOT_FOUND");
+    }
+
+    if (new Date(user.otp_expires_at) <= new Date()) {
+      throwError("OTP has expired.", "OTP_EXPIRED");
+    }
+
+    if (user.otp !== otp) {
+      throwError("Invalid OTP.", "INVALID_OTP");
+    }
+
+    await clearOtp(user.id);
+
+    const verificationToken = jwt.sign(
+      {
+        sub: user.id,
+        phone,
+        type: "profile_phone_verified",
+      },
+      process.env.JWT_ACCESS_SECRET,
+      {
+        expiresIn: "10m",
+      },
+    );
+
+    return {
+      purpose: "profile",
+      verificationToken,
+    };
+  }
+
   const user = await findUserByPhone(phone);
 
   if (!user) {
     throwError("User not found.", "USER_NOT_FOUND");
   }
 
-  if (Number(user.is_account_deleted) === 1) {
+  if (purpose === "signup" && Number(user.is_phone_verified) === 1) {
     throwError("Account is pending deletion.", "ACCOUNT_DELETION_PENDING");
   }
 
@@ -311,19 +336,67 @@ export const verifyOtp = async ({ phone, otp }) => {
   throwError("Invalid OTP purpose.", "INVALID_OTP_PURPOSE");
 };
 
-export const resendOtp = async ({ phone, purpose }) => {
-  const user = await findUserByPhone(phone);
+export const resendOtp = async ({ phone, purpose, userId }) => {
+  let user;
 
-  if (!user) {
-    throwError("User not found.", "USER_NOT_FOUND");
+  if (purpose === "profile") {
+    if (!userId) {
+      const error = new Error("Authentication required.");
+      error.code = "AUTHENTICATION_REQUIRED";
+      throw error;
+    }
+
+    user = await findUserById(userId);
+
+    if (!user) {
+      const error = new Error("User not found.");
+      error.code = "USER_NOT_FOUND";
+      throw error;
+    }
+
+    if (Number(user.is_oauth_login) !== 1) {
+      const error = new Error(
+        "Only social login users can add a phone number.",
+      );
+      error.code = "PROFILE_PHONE_NOT_ALLOWED";
+      throw error;
+    }
+
+    const existingPhoneUser = await findUserByPhone(phone);
+
+    if (existingPhoneUser && Number(existingPhoneUser.id) !== Number(user.id)) {
+      const error = new Error("Phone number is already registered.");
+      error.code = "PHONE_ALREADY_REGISTERED";
+      throw error;
+    }
+  } else {
+    user = await findUserByPhone(phone);
+
+    if (!user && purpose === "signup") {
+      const userId = await createUser({
+        name: "",
+        phone,
+        passwordHash: "",
+      });
+
+      user = await findUserById(userId);
+    }
+
+    if (!user) {
+      throwError("User not found.", "USER_NOT_FOUND");
+    }
   }
 
-  if (Number(user.is_account_deleted) === 1) {
-    throwError("Account is pending deletion.", "ACCOUNT_DELETION_PENDING");
+  if (user.is_account_deleted === 1) {
+    const error = new Error("Account is pending deletion.");
+    error.code = "ACCOUNT_DELETION_PENDING";
+    throw error;
   }
 
-  if (purpose === "signup" && Number(user.is_phone_verified) === 1) {
-    throwError("Phone number is already verified.", "PHONE_ALREADY_VERIFIED");
+  if (purpose === "signup" && user.is_phone_verified === 1) {
+    const error = new Error("Phone number is already verified.");
+    error.code = "PHONE_ALREADY_VERIFIED";
+    throw error;
   }
 
   const otp = generateOtp();
@@ -340,6 +413,19 @@ export const resendOtp = async ({ phone, purpose }) => {
 
   return {
     otp,
+    ...(purpose === "profile"
+      ? {
+          challengeToken: jwt.sign(
+            {
+              sub: user.id,
+              phone,
+              type: "profile_phone_verification",
+            },
+            process.env.JWT_ACCESS_SECRET,
+            { expiresIn: "5m" },
+          ),
+        }
+      : {}),
   };
 };
 

@@ -36,6 +36,7 @@ export const findUserById = async (id) => {
             email,
             password_hash,
             is_phone_verified,
+            is_oauth_login,
             otp,
             otp_expires_at,
             otp_purpose,
@@ -50,7 +51,6 @@ export const findUserById = async (id) => {
         LIMIT 1`,
     [id],
   );
-
   return rows[0] || null;
 };
 
