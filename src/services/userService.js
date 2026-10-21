@@ -506,7 +506,9 @@ export const refreshAccessToken = async (refreshToken) => {
     );
   }
 
-  return createTokens(user.id, user.refresh_token_expires_at);
+  return {
+    accessToken: generateAccessToken(user.id),
+  };
 };
 
 export const logout = async (userId) => {
@@ -577,7 +579,7 @@ export const resetPassword = async ({ reset_token, password }) => {
   await clearRefreshToken(user.id);
 };
 
-export const deleteAccount = async ({ userId, password }) => {
+export const deleteAccount = async ({ userId }) => {
   const user = await findUserById(userId);
 
   if (!user) {
@@ -589,12 +591,6 @@ export const deleteAccount = async ({ userId, password }) => {
       "Account is already pending deletion.",
       "ACCOUNT_DELETION_PENDING",
     );
-  }
-
-  const passwordValid = await bcrypt.compare(password, user.password_hash);
-
-  if (!passwordValid) {
-    throwError("Invalid password.", "INVALID_PASSWORD");
   }
 
   await markAccountForDeletion(userId);

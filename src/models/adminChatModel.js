@@ -1,9 +1,9 @@
 import pool from "../configs/database/db.js";
 
 const adminChatModel = {
-    async getAllConversations() {
-        const [rows] = await pool.execute(
-            `SELECT
+  async getAllConversations() {
+    const [rows] = await pool.execute(
+      `SELECT
                 c.id,
                 c.user_id,
                 c.status,
@@ -26,15 +26,15 @@ const adminChatModel = {
                     LIMIT 1
                 ) AS last_sender_type
              FROM chat_conversations c
-             ORDER BY c.updated_at DESC`
-        );
+             ORDER BY c.updated_at DESC`,
+    );
 
-        return rows;
-    },
+    return rows;
+  },
 
-    async findConversation(conversationId) {
-        const [rows] = await pool.execute(
-            `SELECT
+  async findConversation(conversationId) {
+    const [rows] = await pool.execute(
+      `SELECT
                 id,
                 user_id,
                 status,
@@ -45,15 +45,15 @@ const adminChatModel = {
              FROM chat_conversations
              WHERE id = ?
              LIMIT 1`,
-            [conversationId]
-        );
+      [conversationId],
+    );
 
-        return rows[0] || null;
-    },
+    return rows[0] || null;
+  },
 
-    async getMessages(conversationId) {
-        const [rows] = await pool.execute(
-            `SELECT
+  async getMessages(conversationId) {
+    const [rows] = await pool.execute(
+      `SELECT
                 id,
                 conversation_id,
                 sender_type,
@@ -63,46 +63,76 @@ const adminChatModel = {
              FROM chat_messages
              WHERE conversation_id = ?
              ORDER BY id ASC`,
-            [conversationId]
-        );
+      [conversationId],
+    );
 
-        return rows;
-    },
+    return rows;
+  },
 
-    async createMessage(conversationId, adminId, message) {
-        const connection = await pool.getConnection();
+  async createMessage(conversationId, adminId, message) {
+    const connection = await pool.getConnection();
 
-        try {
-            await connection.beginTransaction();
+    try {
+      await connection.beginTransaction();
 
-            const [result] = await connection.execute(
-                `INSERT INTO chat_messages
+      const [result] = await connection.execute(
+        `INSERT INTO chat_messages
                     (conversation_id, sender_type, sender_id, message)
                  VALUES (?, 'admin', ?, ?)`,
-                [conversationId, adminId, message]
-            );
+        [conversationId, adminId, message],
+      );
 
-            await connection.execute(
-                `UPDATE chat_conversations
+      await connection.execute(
+        `UPDATE chat_conversations
                  SET updated_at = CURRENT_TIMESTAMP
                  WHERE id = ?`,
-                [conversationId]
-            );
+        [conversationId],
+      );
 
-            await connection.commit();
+      await connection.commit();
 
-            return result.insertId;
-        } catch (error) {
-            await connection.rollback();
-            throw error;
-        } finally {
-            connection.release();
-        }
-    },
+      return result.insertId;
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  },
 
-    async updateConversationStatus(conversationId, status) {
-        await pool.execute(
-            `UPDATE chat_conversations
+  async createSystemMessage(conversationId, message) {
+    const connection = await pool.getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      const [result] = await connection.execute(
+        `INSERT INTO chat_messages
+                (conversation_id, sender_type, sender_id, message)
+             VALUES (?, 'system', NULL, ?)`,
+        [conversationId, message],
+      );
+
+      await connection.execute(
+        `UPDATE chat_conversations
+             SET updated_at = CURRENT_TIMESTAMP
+             WHERE id = ?`,
+        [conversationId],
+      );
+
+      await connection.commit();
+
+      return result.insertId;
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  },
+  async updateConversationStatus(conversationId, status) {
+    await pool.execute(
+      `UPDATE chat_conversations
              SET status = ?,
                  resolved_at = CASE
                      WHEN ? = 'resolved' THEN CURRENT_TIMESTAMP
@@ -116,16 +146,9 @@ const adminChatModel = {
                  END,
                  updated_at = CURRENT_TIMESTAMP
              WHERE id = ?`,
-            [
-                status,
-                status,
-                status,
-                status,
-                status,
-                conversationId
-            ]
-        );
-    }
+      [status, status, status, status, status, conversationId],
+    );
+  },
 };
 
 export default adminChatModel;

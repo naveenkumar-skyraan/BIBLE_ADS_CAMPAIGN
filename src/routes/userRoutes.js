@@ -265,19 +265,11 @@ router.post("/reset-password", resetPasswordController);
  *     summary: Schedule account deletion
  *     security:
  *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/DeleteAccountRequest'
  *     responses:
  *       200:
  *         description: Account scheduled for deletion
- *       400:
- *         description: Validation failed
  *       401:
- *         description: Invalid password or unauthorized
+ *         description: Unauthorized
  *       404:
  *         description: User not found
  *       409:

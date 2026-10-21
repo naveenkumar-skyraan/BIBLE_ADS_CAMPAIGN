@@ -1,6 +1,6 @@
 import express from "express";
 import adminChatController from "../controllers/adminChatController.js";
-import { middleware } from "../middleware/authMiddleware.js";
+import { adminAuthMiddleware } from "../middleware/adminAuthMiddleware.js";
 
 const router = express.Router();
 
@@ -11,7 +11,7 @@ const router = express.Router();
  *   description: Admin APIs for managing chat support conversations
  */
 
-router.use(middleware);
+router.use(adminAuthMiddleware);
 
 /**
  * @swagger

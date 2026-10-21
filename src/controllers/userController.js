@@ -20,7 +20,6 @@ import {
   refreshTokenSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
-  deleteAccountSchema,
   changePasswordSchema,
   accountDeletionFeedbackSchema,
 } from "../validators/userValidator.js";
@@ -242,7 +241,6 @@ export const refreshTokenController = async (req, res) => {
       message: "Access token refreshed successfully.",
       data: {
         access_token: result.accessToken,
-        refresh_token: result.refreshToken,
       },
     });
   } catch (error) {
@@ -364,19 +362,8 @@ export const resetPasswordController = async (req, res) => {
 
 export const deleteAccountController = async (req, res) => {
   try {
-    const { error, value } = validate(deleteAccountSchema, req.body);
-
-    if (error) {
-      return res.status(400).json({
-        success: false,
-        message: "Validation failed",
-        errors: error.details.map((detail) => detail.message),
-      });
-    }
-
     await deleteAccount({
       userId: req.user.id,
-      password: value.password,
     });
 
     return res.status(200).json({
@@ -387,7 +374,6 @@ export const deleteAccountController = async (req, res) => {
     const statusCodes = {
       USER_NOT_FOUND: 404,
       ACCOUNT_DELETION_PENDING: 409,
-      INVALID_PASSWORD: 401,
     };
 
     return res.status(statusCodes[error.code] || 500).json({

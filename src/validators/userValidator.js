@@ -73,10 +73,6 @@ export const resetPasswordSchema = Joi.object({
     }),
 });
 
-export const deleteAccountSchema = Joi.object({
-  password: Joi.string().required(),
-});
-
 export const changePasswordSchema = Joi.object({
   current_password: Joi.string().required(),
 
