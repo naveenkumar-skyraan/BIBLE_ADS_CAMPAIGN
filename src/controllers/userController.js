@@ -1,4 +1,5 @@
 import {
+  sendSignupOtp,
   signup,
   verifyOtp,
   resendOtp,
@@ -13,6 +14,7 @@ import {
 } from "../services/userService.js";
 
 import {
+  sendSignupOtpSchema,
   signupSchema,
   verifyOtpSchema,
   resendOtpSchema,
@@ -32,6 +34,48 @@ const validate = (schema, body) => {
   });
 };
 
+export const sendSignupOtpController = async (req, res) => {
+  try {
+    const { error, value } = validate(sendSignupOtpSchema, req.body);
+
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: "Validation failed",
+        errors: error.details.map((detail) => detail.message),
+      });
+    }
+
+    const result = await sendSignupOtp(value);
+
+    return res.status(200).json({
+      success: true,
+      message: "OTP sent successfully.",
+      data: {
+        user_id: result.userId,
+        ...(process.env.STATIC_OTP?.trim().toLowerCase() === "true"
+          ? { otp: result.otp }
+          : {}),
+      },
+    });
+  } catch (error) {
+    const statusCodes = {
+      PHONE_ALREADY_REGISTERED: 409,
+      ACCOUNT_DELETION_PENDING: 409,
+    };
+
+    console.error(error);
+
+    return res.status(statusCodes[error.code] || 500).json({
+      success: false,
+      code: error.code,
+      message: statusCodes[error.code]
+        ? error.message
+        : "Internal server error",
+    });
+  }
+};
+
 export const signupController = async (req, res) => {
   try {
     const { error, value } = validate(signupSchema, req.body);
@@ -48,31 +92,28 @@ export const signupController = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: "OTP generated successfully",
+      message: "Signup successful.",
       data: {
-        user_id: result.userId,
-        ...(process.env.STATIC_OTP?.trim().toLowerCase() === "true"
-          ? { otp: result.otp }
-          : {}),
+        user: result.user,
+        access_token: result.accessToken,
+        refresh_token: result.refreshToken,
       },
     });
   } catch (error) {
-    if (
-      error.code === "PHONE_ALREADY_REGISTERED" ||
-      error.code === "ACCOUNT_DELETION_PENDING"
-    ) {
-      return res.status(409).json({
-        success: false,
-        code: error.code,
-        message: error.message,
-      });
-    }
+    const statusCodes = {
+      PHONE_ALREADY_REGISTERED: 409,
+      ACCOUNT_DELETION_PENDING: 409,
+      PHONE_NOT_VERIFIED: 403,
+    };
 
     console.error(error);
 
-    return res.status(500).json({
+    return res.status(statusCodes[error.code] || 500).json({
       success: false,
-      message: "Internal server error",
+      code: error.code,
+      message: statusCodes[error.code]
+        ? error.message
+        : "Internal server error",
     });
   }
 };

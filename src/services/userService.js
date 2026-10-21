@@ -8,6 +8,7 @@ import {
   createUser,
   updateOtp,
   verifyPhone,
+  completePendingSignup,
   clearOtp,
   updatePassword,
   updateRefreshToken,
@@ -27,6 +28,7 @@ const generateOtp = () => {
   if (process.env.STATIC_OTP?.trim().toLowerCase() === "true") {
     return "1234";
   }
+
   return crypto.randomInt(1000, 10000).toString();
 };
 
@@ -83,9 +85,7 @@ const compareToken = async (token, hashedToken) => {
 
 const getRefreshSessionExpiry = () => {
   const expiry = new Date();
-
   expiry.setDate(expiry.getDate() + REFRESH_SESSION_DAYS);
-
   return expiry;
 };
 
@@ -112,14 +112,11 @@ const createTokens = async (userId, existingRefreshSessionExpiry = null) => {
     const error = new Error(
       "Refresh session has expired. Please log in again.",
     );
-
     error.code = "INVALID_REFRESH_TOKEN";
-
     throw error;
   }
 
   const refreshToken = generateRefreshToken(userId, remainingSeconds);
-
   const refreshTokenHash = await hashToken(refreshToken);
 
   await updateRefreshToken({
@@ -134,69 +131,127 @@ const createTokens = async (userId, existingRefreshSessionExpiry = null) => {
   };
 };
 
-export const signup = async ({ name, phone, password }) => {
+const throwError = (message, code) => {
+  const error = new Error(message);
+  error.code = code;
+  throw error;
+};
+
+export const sendSignupOtp = async ({ phone }) => {
   const existingUser = await findUserByPhone(phone);
 
   if (existingUser) {
     if (Number(existingUser.is_account_deleted) === 1) {
-      const deletionDate = new Date(existingUser.account_deleted_at);
-
-      const expiryDate = new Date(
-        deletionDate.getTime() + 30 * 24 * 60 * 60 * 1000,
+      throwError(
+        "Account is pending deletion. Please reactivate the account by logging in.",
+        "ACCOUNT_DELETION_PENDING",
       );
-
-      if (new Date() <= expiryDate) {
-        const error = new Error(
-          "Account is pending deletion. Please reactivate the account by logging in.",
-        );
-
-        error.code = "ACCOUNT_DELETION_PENDING";
-        throw error;
-      }
     }
 
     if (Number(existingUser.is_phone_verified) === 1) {
-      const error = new Error("Phone number is already registered.");
-      error.code = "PHONE_ALREADY_REGISTERED";
-      throw error;
+      throwError(
+        "Phone number is already registered.",
+        "PHONE_ALREADY_REGISTERED",
+      );
     }
+  }
 
-    const otp = generateOtp();
-    const otpExpiresAt = getOtpExpiry();
+  const otp = generateOtp();
+  const otpExpiresAt = getOtpExpiry();
+
+  let userId;
+
+  if (existingUser) {
+    userId = existingUser.id;
 
     await updateOtp({
-      userId: existingUser.id,
+      userId,
       otp,
       otpExpiresAt,
       otpPurpose: "signup",
     });
-
-    await deliverOtp(phone, otp);
-
-    return {
-      userId: existingUser.id,
+  } else {
+    userId = await createUser({
+      name: "",
+      phone,
+      passwordHash: "",
       otp,
-    };
+      otpExpiresAt,
+      otpPurpose: "signup",
+    });
   }
 
-  const passwordHash = await bcrypt.hash(password, 12);
-  const otp = generateOtp();
-  const otpExpiresAt = getOtpExpiry();
-
-  const userId = await createUser({
-    name,
-    phone,
-    passwordHash,
-    otp,
-    otpExpiresAt,
-    otpPurpose: "signup",
-  });
-
-  await deliverOtp(phone, otp);
+  try {
+    await deliverOtp(phone, otp);
+  } catch (error) {
+    await clearOtp(userId);
+    throw error;
+  }
 
   return {
     userId,
-    otp,
+    ...(process.env.STATIC_OTP?.trim().toLowerCase() === "true" ? { otp } : {}),
+  };
+};
+
+export const signup = async ({ name, phone, password }) => {
+  const existingUser = await findUserByPhone(phone);
+
+  if (!existingUser) {
+    throwError(
+      "Phone number must be verified before signup.",
+      "PHONE_NOT_VERIFIED",
+    );
+  }
+
+  if (Number(existingUser.is_account_deleted) === 1) {
+    throwError(
+      "Account is pending deletion. Please reactivate the account by logging in.",
+      "ACCOUNT_DELETION_PENDING",
+    );
+  }
+
+  if (Number(existingUser.is_phone_verified) !== 1) {
+    throwError(
+      "Phone number is not verified. Please verify the OTP first.",
+      "PHONE_NOT_VERIFIED",
+    );
+  }
+
+  if (existingUser.password_hash && existingUser.password_hash.trim() !== "") {
+    throwError(
+      "Phone number is already registered.",
+      "PHONE_ALREADY_REGISTERED",
+    );
+  }
+
+  const passwordHash = await bcrypt.hash(password, 12);
+
+  const affectedRows = await completePendingSignup({
+    userId: existingUser.id,
+    name,
+    passwordHash,
+  });
+
+  if (affectedRows === 0) {
+    throwError(
+      "Phone number must be verified before signup.",
+      "PHONE_NOT_VERIFIED",
+    );
+  }
+
+  const tokens = await createTokens(existingUser.id);
+  const has_business = await hasBusinessByUserId(existingUser.id);
+
+  return {
+    user: {
+      id: existingUser.id,
+      name,
+      phone: existingUser.phone || "",
+      email: existingUser.email || "",
+      has_business,
+    },
+    ...tokens,
   };
 };
 
@@ -204,43 +259,23 @@ export const verifyOtp = async ({ phone, otp }) => {
   const user = await findUserByPhone(phone);
 
   if (!user) {
-    const error = new Error("User not found.");
-
-    error.code = "USER_NOT_FOUND";
-
-    throw error;
+    throwError("User not found.", "USER_NOT_FOUND");
   }
 
-  if (user.is_account_deleted === 1) {
-    const error = new Error("Account is pending deletion.");
-
-    error.code = "ACCOUNT_DELETION_PENDING";
-
-    throw error;
+  if (Number(user.is_account_deleted) === 1) {
+    throwError("Account is pending deletion.", "ACCOUNT_DELETION_PENDING");
   }
 
   if (!user.otp || !user.otp_expires_at) {
-    const error = new Error("No active OTP found.");
-
-    error.code = "OTP_NOT_FOUND";
-
-    throw error;
+    throwError("No active OTP found.", "OTP_NOT_FOUND");
   }
 
   if (new Date(user.otp_expires_at) < new Date()) {
-    const error = new Error("OTP has expired.");
-
-    error.code = "OTP_EXPIRED";
-
-    throw error;
+    throwError("OTP has expired.", "OTP_EXPIRED");
   }
 
   if (user.otp !== otp) {
-    const error = new Error("Invalid OTP.");
-
-    error.code = "INVALID_OTP";
-
-    throw error;
+    throwError("Invalid OTP.", "INVALID_OTP");
   }
 
   const purpose = user.otp_purpose;
@@ -273,42 +308,25 @@ export const verifyOtp = async ({ phone, otp }) => {
     };
   }
 
-  const error = new Error("Invalid OTP purpose.");
-
-  error.code = "INVALID_OTP_PURPOSE";
-
-  throw error;
+  throwError("Invalid OTP purpose.", "INVALID_OTP_PURPOSE");
 };
 
 export const resendOtp = async ({ phone, purpose }) => {
   const user = await findUserByPhone(phone);
 
   if (!user) {
-    const error = new Error("User not found.");
-
-    error.code = "USER_NOT_FOUND";
-
-    throw error;
+    throwError("User not found.", "USER_NOT_FOUND");
   }
 
-  if (user.is_account_deleted === 1) {
-    const error = new Error("Account is pending deletion.");
-
-    error.code = "ACCOUNT_DELETION_PENDING";
-
-    throw error;
+  if (Number(user.is_account_deleted) === 1) {
+    throwError("Account is pending deletion.", "ACCOUNT_DELETION_PENDING");
   }
 
-  if (purpose === "signup" && user.is_phone_verified === 1) {
-    const error = new Error("Phone number is already verified.");
-
-    error.code = "PHONE_ALREADY_VERIFIED";
-
-    throw error;
+  if (purpose === "signup" && Number(user.is_phone_verified) === 1) {
+    throwError("Phone number is already verified.", "PHONE_ALREADY_VERIFIED");
   }
 
   const otp = generateOtp();
-
   const otpExpiresAt = getOtpExpiry();
 
   await updateOtp({
@@ -329,57 +347,44 @@ export const login = async ({ phone, password, reactivate }) => {
   const user = await findUserByPhone(phone);
 
   if (!user) {
-    const error = new Error("Invalid phone number or password.");
+    throwError("Invalid phone number or password.", "INVALID_CREDENTIALS");
+  }
 
-    error.code = "INVALID_CREDENTIALS";
-
-    throw error;
+  if (!user.password_hash) {
+    throwError("Invalid phone number or password.", "INVALID_CREDENTIALS");
   }
 
   const passwordValid = await bcrypt.compare(password, user.password_hash);
 
   if (!passwordValid) {
-    const error = new Error("Invalid phone number or password.");
-
-    error.code = "INVALID_CREDENTIALS";
-
-    throw error;
+    throwError("Invalid phone number or password.", "INVALID_CREDENTIALS");
   }
 
-  if (user.is_account_deleted === 1) {
+  if (Number(user.is_account_deleted) === 1) {
     const deletionDate = new Date(user.account_deleted_at);
-
     const expiryDate = new Date(
       deletionDate.getTime() + 30 * 24 * 60 * 60 * 1000,
     );
 
     if (new Date() > expiryDate) {
-      const error = new Error("Account deletion period has expired.");
-
-      error.code = "ACCOUNT_DELETION_EXPIRED";
-
-      throw error;
+      throwError(
+        "Account deletion period has expired.",
+        "ACCOUNT_DELETION_EXPIRED",
+      );
     }
 
     if (!reactivate) {
-      const error = new Error(
+      throwError(
         "Account is pending deletion. Reactivation is required to continue.",
+        "ACCOUNT_DELETION_PENDING",
       );
-
-      error.code = "ACCOUNT_DELETION_PENDING";
-
-      throw error;
     }
 
     await reactivateAccount(user.id);
   }
 
-  if (user.is_phone_verified !== 1) {
-    const error = new Error("Phone number is not verified.");
-
-    error.code = "PHONE_NOT_VERIFIED";
-
-    throw error;
+  if (Number(user.is_phone_verified) !== 1) {
+    throwError("Phone number is not verified.", "PHONE_NOT_VERIFIED");
   }
 
   const tokens = await createTokens(user.id);
@@ -403,87 +408,53 @@ export const refreshAccessToken = async (refreshToken) => {
   try {
     decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
   } catch {
-    const error = new Error("Invalid or expired refresh token.");
-
-    error.code = "INVALID_REFRESH_TOKEN";
-
-    throw error;
+    throwError("Invalid or expired refresh token.", "INVALID_REFRESH_TOKEN");
   }
 
   if (decoded.type !== "refresh") {
-    const error = new Error("Invalid refresh token.");
-
-    error.code = "INVALID_REFRESH_TOKEN";
-
-    throw error;
+    throwError("Invalid refresh token.", "INVALID_REFRESH_TOKEN");
   }
 
   const user = await findUserById(decoded.sub);
 
   if (!user) {
-    const error = new Error("User not found.");
-
-    error.code = "USER_NOT_FOUND";
-
-    throw error;
+    throwError("User not found.", "USER_NOT_FOUND");
   }
 
-  if (user.is_account_deleted === 1) {
-    const error = new Error("Account is pending deletion.");
-
-    error.code = "ACCOUNT_DELETION_PENDING";
-
-    throw error;
+  if (Number(user.is_account_deleted) === 1) {
+    throwError("Account is pending deletion.", "ACCOUNT_DELETION_PENDING");
   }
 
   if (!user.refresh_token || !user.refresh_token_expires_at) {
-    const error = new Error("Refresh token is no longer valid.");
-
-    error.code = "INVALID_REFRESH_TOKEN";
-
-    throw error;
+    throwError("Refresh token is no longer valid.", "INVALID_REFRESH_TOKEN");
   }
 
   if (new Date(user.refresh_token_expires_at) <= new Date()) {
     await clearRefreshToken(user.id);
-
-    const error = new Error(
+    throwError(
       "Refresh session has expired. Please log in again.",
+      "INVALID_REFRESH_TOKEN",
     );
-
-    error.code = "INVALID_REFRESH_TOKEN";
-
-    throw error;
   }
 
   const validStoredToken = await compareToken(refreshToken, user.refresh_token);
 
   if (!validStoredToken) {
     await clearRefreshToken(user.id);
-
-    const error = new Error(
+    throwError(
       "Refresh token reuse detected. Please log in again.",
+      "INVALID_REFRESH_TOKEN",
     );
-
-    error.code = "INVALID_REFRESH_TOKEN";
-
-    throw error;
   }
 
-  const tokens = await createTokens(user.id, user.refresh_token_expires_at);
-
-  return tokens;
+  return createTokens(user.id, user.refresh_token_expires_at);
 };
 
 export const logout = async (userId) => {
   const user = await findUserById(userId);
 
   if (!user) {
-    const error = new Error("User not found.");
-
-    error.code = "USER_NOT_FOUND";
-
-    throw error;
+    throwError("User not found.", "USER_NOT_FOUND");
   }
 
   await clearRefreshToken(userId);
@@ -493,23 +464,14 @@ export const forgotPassword = async (phone) => {
   const user = await findUserByPhone(phone);
 
   if (!user) {
-    const error = new Error("User not found.");
-
-    error.code = "USER_NOT_FOUND";
-
-    throw error;
+    throwError("User not found.", "USER_NOT_FOUND");
   }
 
-  if (user.is_account_deleted === 1) {
-    const error = new Error("Account is pending deletion.");
-
-    error.code = "ACCOUNT_DELETION_PENDING";
-
-    throw error;
+  if (Number(user.is_account_deleted) === 1) {
+    throwError("Account is pending deletion.", "ACCOUNT_DELETION_PENDING");
   }
 
   const otp = generateOtp();
-
   const otpExpiresAt = getOtpExpiry();
 
   await updateOtp({
@@ -533,44 +495,26 @@ export const resetPassword = async ({ reset_token, password }) => {
     decoded = jwt.verify(reset_token, process.env.JWT_ACCESS_SECRET);
   } catch (jwtError) {
     console.error("RESET TOKEN ERROR:", jwtError.name, jwtError.message);
-
-    const error = new Error("Invalid or expired reset token.");
-
-    error.code = "INVALID_RESET_TOKEN";
-
-    throw error;
+    throwError("Invalid or expired reset token.", "INVALID_RESET_TOKEN");
   }
 
   if (decoded.type !== "password_reset") {
-    const error = new Error("Invalid reset token.");
-
-    error.code = "INVALID_RESET_TOKEN";
-
-    throw error;
+    throwError("Invalid reset token.", "INVALID_RESET_TOKEN");
   }
 
   const user = await findUserById(decoded.sub);
 
   if (!user) {
-    const error = new Error("User not found.");
-
-    error.code = "USER_NOT_FOUND";
-
-    throw error;
+    throwError("User not found.", "USER_NOT_FOUND");
   }
 
-  if (user.is_account_deleted === 1) {
-    const error = new Error("Account is pending deletion.");
-
-    error.code = "ACCOUNT_DELETION_PENDING";
-
-    throw error;
+  if (Number(user.is_account_deleted) === 1) {
+    throwError("Account is pending deletion.", "ACCOUNT_DELETION_PENDING");
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
 
   await updatePassword(user.id, passwordHash);
-
   await clearRefreshToken(user.id);
 };
 
@@ -578,29 +522,20 @@ export const deleteAccount = async ({ userId, password }) => {
   const user = await findUserById(userId);
 
   if (!user) {
-    const error = new Error("User not found.");
-
-    error.code = "USER_NOT_FOUND";
-
-    throw error;
+    throwError("User not found.", "USER_NOT_FOUND");
   }
 
-  if (user.is_account_deleted === 1) {
-    const error = new Error("Account is already pending deletion.");
-
-    error.code = "ACCOUNT_DELETION_PENDING";
-
-    throw error;
+  if (Number(user.is_account_deleted) === 1) {
+    throwError(
+      "Account is already pending deletion.",
+      "ACCOUNT_DELETION_PENDING",
+    );
   }
 
   const passwordValid = await bcrypt.compare(password, user.password_hash);
 
   if (!passwordValid) {
-    const error = new Error("Invalid password.");
-
-    error.code = "INVALID_PASSWORD";
-
-    throw error;
+    throwError("Invalid password.", "INVALID_PASSWORD");
   }
 
   await markAccountForDeletion(userId);
@@ -614,15 +549,11 @@ export const changePassword = async ({
   const user = await findUserById(userId);
 
   if (!user) {
-    const error = new Error("User not found.");
-    error.code = "USER_NOT_FOUND";
-    throw error;
+    throwError("User not found.", "USER_NOT_FOUND");
   }
 
-  if (user.is_account_deleted === 1) {
-    const error = new Error("Account is pending deletion.");
-    error.code = "ACCOUNT_DELETION_PENDING";
-    throw error;
+  if (Number(user.is_account_deleted) === 1) {
+    throwError("Account is pending deletion.", "ACCOUNT_DELETION_PENDING");
   }
 
   const passwordValid = await bcrypt.compare(
@@ -631,19 +562,16 @@ export const changePassword = async ({
   );
 
   if (!passwordValid) {
-    const error = new Error("Current password is incorrect.");
-    error.code = "INVALID_CURRENT_PASSWORD";
-    throw error;
+    throwError("Current password is incorrect.", "INVALID_CURRENT_PASSWORD");
   }
 
   const samePassword = await bcrypt.compare(newPassword, user.password_hash);
 
   if (samePassword) {
-    const error = new Error(
+    throwError(
       "New password must differ from the current password.",
+      "PASSWORD_UNCHANGED",
     );
-    error.code = "PASSWORD_UNCHANGED";
-    throw error;
   }
 
   const passwordHash = await bcrypt.hash(newPassword, 12);
@@ -660,15 +588,11 @@ export const submitAccountDeletionFeedback = async ({
   const user = await findUserById(userId);
 
   if (!user) {
-    const error = new Error("User not found.");
-    error.code = "USER_NOT_FOUND";
-    throw error;
+    throwError("User not found.", "USER_NOT_FOUND");
   }
 
-  if (user.is_account_deleted === 1) {
-    const error = new Error("Account is pending deletion.");
-    error.code = "ACCOUNT_DELETION_PENDING";
-    throw error;
+  if (Number(user.is_account_deleted) === 1) {
+    throwError("Account is pending deletion.", "ACCOUNT_DELETION_PENDING");
   }
 
   const feedbackId = await createAccountDeletionFeedback({

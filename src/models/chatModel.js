@@ -50,14 +50,34 @@ const chatModel = {
   },
 
   async createMessage(conversationId, senderType, senderId, message) {
-    const [result] = await pool.execute(
-      `INSERT INTO chat_messages
+    const connection = await pool.getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      const [result] = await connection.execute(
+        `INSERT INTO chat_messages
                 (conversation_id, sender_type, sender_id, message)
              VALUES (?, ?, ?, ?)`,
-      [conversationId, senderType, senderId, message],
-    );
+        [conversationId, senderType, senderId, message],
+      );
 
-    return result.insertId;
+      await connection.execute(
+        `UPDATE chat_conversations
+             SET updated_at = CURRENT_TIMESTAMP
+             WHERE id = ?`,
+        [conversationId],
+      );
+
+      await connection.commit();
+
+      return result.insertId;
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   },
 
   async getMessages(conversationId) {

@@ -16,50 +16,8 @@ import {
 
 const router = express.Router();
 
-/**
- * @swagger
- * tags:
- *   - name: Business Details
- *     description: Business profile management APIs
- *   - name: Countries
- *     description: Country configuration APIs
- *   - name: Location
- *     description: GeoNames location options APIs
- */
-
-/**
- * @swagger
- * /api/business-details/countries:
- *   get:
- *     summary: Get all supported countries and their field configuration
- *     tags: [Countries]
- *     responses:
- *       200:
- *         description: Countries retrieved successfully
- */
 router.get("/countries", businessDetailController.getCountries);
 
-/**
- * @swagger
- * /api/business-details/countries/{country_code}:
- *   get:
- *     summary: Get country configuration by country code
- *     tags: [Countries]
- *     parameters:
- *       - in: path
- *         name: country_code
- *         required: true
- *         schema:
- *           type: string
- *           example: IN
- *     responses:
- *       200:
- *         description: Country configuration retrieved successfully
- *       400:
- *         description: Invalid country code
- *       404:
- *         description: Country not found
- */
 router.get(
   "/countries/:country_code",
   validateRequest(countryCodeSchema, "params"),
@@ -113,6 +71,7 @@ router.get(
  */
 router.get(
   "/locations/options",
+  middleware,
   validateRequest(locationOptionsSchema, "query"),
   locationController.getOptions,
 );

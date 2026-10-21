@@ -1,6 +1,7 @@
 import express from "express";
 
 import {
+  sendSignupOtpController,
   signupController,
   verifyOtpController,
   resendOtpController,
@@ -20,11 +21,36 @@ const router = express.Router();
 
 /**
  * @swagger
+ * /api/auth/signup/send-otp:
+ *   post:
+ *     tags:
+ *       - Authentication
+ *     summary: Send OTP for signup
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/SignupOtpRequest'
+ *     responses:
+ *       200:
+ *         description: OTP sent successfully
+ *       400:
+ *         description: Validation failed
+ *       409:
+ *         description: Phone already registered or account deletion pending
+ *       500:
+ *         description: Failed to send OTP
+ */
+router.post("/signup/send-otp", sendSignupOtpController);
+
+/**
+ * @swagger
  * /api/auth/signup:
  *   post:
  *     tags:
  *       - Authentication
- *     summary: Register a new user
+ *     summary: Complete signup after OTP verification
  *     requestBody:
  *       required: true
  *       content:
@@ -33,7 +59,7 @@ const router = express.Router();
  *             $ref: '#/components/schemas/SignupRequest'
  *     responses:
  *       201:
- *         description: OTP generated successfully
+ *         description: Signup successful; user details and authentication tokens returned
  *       400:
  *         description: Validation failed
  *       409:

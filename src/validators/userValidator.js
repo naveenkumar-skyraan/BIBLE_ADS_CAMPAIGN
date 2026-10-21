@@ -1,5 +1,12 @@
 import Joi from "joi";
 
+export const sendSignupOtpSchema = Joi.object({
+  phone: Joi.string()
+    .trim()
+    .pattern(/^[0-9]{10}$/)
+    .required(),
+});
+
 export const signupSchema = Joi.object({
   name: Joi.string().trim().min(2).max(100).required(),
 
@@ -28,7 +35,7 @@ export const resendOtpSchema = Joi.object({
     .pattern(/^[0-9]{10}$/)
     .required(),
 
-  purpose: Joi.string().valid("signup", "forgot_password").required(),
+  purpose: Joi.string().valid("signup", "forgot_password", "profile").required(),
 });
 
 export const loginSchema = Joi.object({

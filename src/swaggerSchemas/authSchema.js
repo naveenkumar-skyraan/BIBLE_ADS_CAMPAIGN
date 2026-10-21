@@ -1,4 +1,16 @@
 const authSchema = {
+  SendSignupOtpRequest: {
+    type: "object",
+    required: ["phone"],
+    properties: {
+      phone: {
+        type: "string",
+        pattern: "^[0-9]{10}$",
+        example: "9876543210",
+      },
+    },
+  },
+
   SignupRequest: {
     type: "object",
     required: ["name", "phone", "password"],

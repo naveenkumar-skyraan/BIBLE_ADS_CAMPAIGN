@@ -90,6 +90,7 @@ const chatService = {
     };
 
     const adminOnline = isAdminOnline();
+    let acknowledgement = null;
 
     if (adminOnline) {
       await chatModel.updateConversationStatus(conversationId, "in_progress");
@@ -104,8 +105,6 @@ const chatService = {
         "system",
         OFFLINE_MESSAGE,
       );
-
-      let acknowledgement = null;
 
       if (!acknowledgementExists) {
         const acknowledgementId = await chatModel.createMessage(
@@ -122,8 +121,6 @@ const chatService = {
         };
       }
 
-      userMessage.acknowledgement = acknowledgement;
-
       emitToAdmins("chat:offline-message-received", {
         conversationId: Number(conversationId),
       });
@@ -132,7 +129,7 @@ const chatService = {
     return {
       adminOnline,
       message: userMessage,
-      acknowledgement: userMessage.acknowledgement || null,
+      acknowledgement,
     };
   },
 };

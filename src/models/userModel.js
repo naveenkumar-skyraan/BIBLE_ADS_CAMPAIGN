@@ -65,6 +65,7 @@ export const createUser = async ({
   isOauthLogin = 0,
   oauthProviderId = "",
   oauthProvider = 0,
+  isPhoneVerified = 0,
 }) => {
   const [result] = await pool.execute(
     `INSERT INTO users
@@ -87,7 +88,7 @@ export const createUser = async ({
       phone ?? null,
       email || "",
       passwordHash || "",
-      0,
+      isPhoneVerified,
       otp ?? null,
       otpExpiresAt ?? null,
       otpPurpose ?? null,
@@ -123,6 +124,22 @@ export const verifyPhone = async (userId) => {
         WHERE id = ?`,
     [userId],
   );
+};
+
+export const completePendingSignup = async ({ userId, name, passwordHash }) => {
+  const [result] = await pool.execute(
+    `UPDATE users
+     SET
+       name = ?,
+       password_hash = ?,
+       updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?
+       AND is_phone_verified = 1
+       AND (password_hash IS NULL OR password_hash = '')`,
+    [name, passwordHash, userId],
+  );
+
+  return result.affectedRows;
 };
 
 export const clearOtp = async (userId) => {
