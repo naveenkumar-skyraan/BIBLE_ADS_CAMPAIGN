@@ -16,18 +16,15 @@ export const verifyOtpSchema = Joi.object({
     .trim()
     .pattern(/^[0-9]{10}$/)
     .required(),
+
   otp: Joi.string()
     .trim()
     .pattern(/^[0-9]{4,6}$/)
     .required(),
+
   purpose: Joi.string()
     .valid("signup", "forgot_password", "profile")
-    .optional(),
-  challenge_token: Joi.string().when("purpose", {
-    is: "profile",
-    then: Joi.required(),
-    otherwise: Joi.optional(),
-  }),
+    .required(),
 });
 
 export const resendOtpSchema = Joi.object({

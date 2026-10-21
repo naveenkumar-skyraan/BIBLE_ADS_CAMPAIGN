@@ -25,6 +25,7 @@ import issueReportRoutes from "./src/routes/issueReportRoutes.js";
 import adminIssueReportRoutes from "./src/routes/adminIssueReportRoutes.js";
 
 import chatRoutes from "./src/routes/chatRoutes.js";
+import adminChatRoutes from "./src/routes/adminChatRoutes.js";
 
 import { createServer } from "node:http";
 import { initializeChatSocket } from "./src/sockets/chatSocket.js";
@@ -87,7 +88,7 @@ app.use("/api/issue-reports", issueReportRoutes);
 app.use("/api/admin/issue-reports", adminIssueReportRoutes);
 
 app.use("/api/chat", chatRoutes);
-
+app.use("/api/admin/chat", adminChatRoutes);
 app.use(errorHandler);
 
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));

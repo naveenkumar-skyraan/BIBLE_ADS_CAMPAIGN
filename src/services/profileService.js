@@ -1,4 +1,3 @@
-import jwt from "jsonwebtoken";
 import profileModel from "../models/profileModel.js";
 import { findUserById } from "../models/userModel.js";
 
@@ -36,6 +35,13 @@ const profileService = {
     const existingPhone = existingProfile.phone || null;
     const phoneChanged = requestedPhone !== existingPhone;
 
+    if (requestedPhone && Number(user.is_phone_verified) !== 1) {
+      throw createError(
+        "PHONE_VERIFICATION_REQUIRED",
+        "Verify the phone number before updating your profile.",
+      );
+    }
+
     if (phoneChanged) {
       if (Number(user.is_oauth_login) !== 1) {
         throw createError(
@@ -45,35 +51,10 @@ const profileService = {
       }
 
       if (requestedPhone) {
-        if (!data.phone_verification_token) {
+        if (user.phone !== requestedPhone) {
           throw createError(
             "PHONE_VERIFICATION_REQUIRED",
-            "Verify the phone number before updating your profile.",
-          );
-        }
-
-        let decoded;
-
-        try {
-          decoded = jwt.verify(
-            data.phone_verification_token,
-            process.env.JWT_ACCESS_SECRET,
-          );
-        } catch {
-          throw createError(
-            "INVALID_PHONE_VERIFICATION_TOKEN",
-            "Phone verification token is invalid or expired.",
-          );
-        }
-
-        if (
-          decoded.type !== "profile_phone_verified" ||
-          Number(decoded.sub) !== Number(userId) ||
-          decoded.phone !== requestedPhone
-        ) {
-          throw createError(
-            "INVALID_PHONE_VERIFICATION_TOKEN",
-            "Phone verification token does not match this user and phone number.",
+            "Verify the requested phone number before updating your profile.",
           );
         }
 

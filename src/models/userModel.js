@@ -113,6 +113,40 @@ export const updateOtp = async ({ userId, otp, otpExpiresAt, otpPurpose }) => {
   );
 };
 
+export const setProfilePhoneForOtp = async (userId, phone) => {
+  const [result] = await pool.execute(
+    `UPDATE users
+     SET
+       phone = ?,
+       is_phone_verified = 0,
+       updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?
+       AND is_oauth_login = 1
+       AND is_account_deleted = 0`,
+    [phone, userId],
+  );
+
+  return result.affectedRows;
+};
+
+export const verifyProfilePhone = async (userId, phone) => {
+  const [result] = await pool.execute(
+    `UPDATE users
+     SET
+       is_phone_verified = 1,
+       otp = NULL,
+       otp_expires_at = NULL,
+       otp_purpose = NULL,
+       updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?
+       AND phone = ?
+       AND otp_purpose = 'profile'`,
+    [userId, phone],
+  );
+
+  return result.affectedRows;
+};
+
 export const verifyPhone = async (userId) => {
   await pool.execute(
     `UPDATE users

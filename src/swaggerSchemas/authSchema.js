@@ -1,5 +1,4 @@
 const authSchema = {
-
   SignupRequest: {
     type: "object",
     required: ["name", "phone", "password"],
@@ -22,7 +21,7 @@ const authSchema = {
 
   VerifyOtpRequest: {
     type: "object",
-    required: ["phone", "otp"],
+    required: ["phone", "otp", "purpose"],
     properties: {
       phone: {
         type: "string",
@@ -31,6 +30,11 @@ const authSchema = {
       otp: {
         type: "string",
         example: "1234",
+      },
+      purpose: {
+        type: "string",
+        enum: ["signup", "forgot_password", "profile"],
+        example: "profile",
       },
     },
   },

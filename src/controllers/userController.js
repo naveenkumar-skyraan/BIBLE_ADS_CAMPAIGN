@@ -32,7 +32,6 @@ const validate = (schema, body) => {
   });
 };
 
-
 export const signupController = async (req, res) => {
   try {
     const { error, value } = validate(signupSchema, req.body);
@@ -103,9 +102,6 @@ export const verifyOtpController = async (req, res) => {
       return res.status(200).json({
         success: true,
         message: "Phone number verified successfully.",
-        data: {
-          phone_verification_token: result.verificationToken,
-        },
       });
     }
 
@@ -124,8 +120,10 @@ export const verifyOtpController = async (req, res) => {
       OTP_EXPIRED: 400,
       INVALID_OTP: 400,
       INVALID_OTP_PURPOSE: 400,
-      INVALID_PROFILE_CHALLENGE: 401,
       PROFILE_PHONE_NOT_ALLOWED: 403,
+      AUTHENTICATION_REQUIRED: 401,
+      PHONE_VERIFICATION_MISMATCH: 400,
+      PHONE_ALREADY_VERIFIED: 409,
     };
 
     return res.status(statusCodes[error.code] || 500).json({
@@ -161,9 +159,6 @@ export const resendOtpController = async (req, res) => {
       data: {
         ...(process.env.STATIC_OTP?.trim().toLowerCase() === "true"
           ? { otp: result.otp }
-          : {}),
-        ...(result.challengeToken
-          ? { challenge_token: result.challengeToken }
           : {}),
       },
     });

@@ -8,6 +8,8 @@ import {
   createUser,
   updateOtp,
   verifyPhone,
+  verifyProfilePhone,
+  setProfilePhoneForOtp,
   completePendingSignup,
   clearOtp,
   updatePassword,
@@ -202,30 +204,12 @@ export const verifyOtp = async ({
   phone,
   otp,
   purpose: requestedPurpose,
-  challenge_token: challengeToken,
   userId,
 }) => {
+  // Profile phone verification: identify the user from the access token.
   if (requestedPurpose === "profile") {
-    let decoded;
-
-    try {
-      decoded = jwt.verify(challengeToken, process.env.JWT_ACCESS_SECRET);
-    } catch {
-      throwError(
-        "Invalid or expired profile verification challenge.",
-        "INVALID_PROFILE_CHALLENGE",
-      );
-    }
-
-    if (
-      decoded.type !== "profile_phone_verification" ||
-      Number(decoded.sub) !== Number(userId) ||
-      decoded.phone !== phone
-    ) {
-      throwError(
-        "Invalid profile verification challenge.",
-        "INVALID_PROFILE_CHALLENGE",
-      );
+    if (!userId) {
+      throwError("Authentication required.", "AUTHENTICATION_REQUIRED");
     }
 
     const user = await findUserById(userId);
@@ -245,86 +229,87 @@ export const verifyOtp = async ({
       );
     }
 
-    if (user.otp_purpose !== "profile") {
-      throwError("No active profile OTP found.", "OTP_NOT_FOUND");
+    // The submitted phone must match the phone stored during resend-otp.
+    if (!user.phone || user.phone !== phone) {
+      throwError(
+        "Phone number does not match the pending verification.",
+        "PHONE_VERIFICATION_MISMATCH",
+      );
     }
 
-    if (!user.otp || !user.otp_expires_at) {
-      throwError("No active OTP found.", "OTP_NOT_FOUND");
+    if (user.otp_purpose !== "profile" || !user.otp || !user.otp_expires_at) {
+      throwError("No active profile OTP found.", "OTP_NOT_FOUND");
     }
 
     if (new Date(user.otp_expires_at) <= new Date()) {
       throwError("OTP has expired.", "OTP_EXPIRED");
     }
 
-    if (user.otp !== otp) {
+    if (String(user.otp) !== String(otp)) {
       throwError("Invalid OTP.", "INVALID_OTP");
     }
 
-    await clearOtp(user.id);
+    const affectedRows = await verifyProfilePhone(user.id, phone);
 
-    const verificationToken = jwt.sign(
-      {
-        sub: user.id,
-        phone,
-        type: "profile_phone_verified",
-      },
-      process.env.JWT_ACCESS_SECRET,
-      {
-        expiresIn: "10m",
-      },
-    );
+    if (affectedRows === 0) {
+      throwError(
+        "Phone verification could not be completed. Please request a new OTP.",
+        "OTP_NOT_FOUND",
+      );
+    }
 
-    return {
-      purpose: "profile",
-      verificationToken,
-    };
+    return { purpose: "profile" };
   }
 
+  // Normal signup and forgot-password verification.
   const user = await findUserByPhone(phone);
 
   if (!user) {
     throwError("User not found.", "USER_NOT_FOUND");
   }
 
-  if (purpose === "signup" && Number(user.is_phone_verified) === 1) {
+  if (Number(user.is_account_deleted) === 1) {
     throwError("Account is pending deletion.", "ACCOUNT_DELETION_PENDING");
+  }
+
+  if (user.otp_purpose !== requestedPurpose) {
+    throwError(
+      "OTP purpose does not match the request.",
+      "INVALID_OTP_PURPOSE",
+    );
+  }
+
+  if (requestedPurpose === "signup" && Number(user.is_phone_verified) === 1) {
+    throwError("Phone number is already verified.", "PHONE_ALREADY_VERIFIED");
   }
 
   if (!user.otp || !user.otp_expires_at) {
     throwError("No active OTP found.", "OTP_NOT_FOUND");
   }
 
-  if (new Date(user.otp_expires_at) < new Date()) {
+  if (new Date(user.otp_expires_at) <= new Date()) {
     throwError("OTP has expired.", "OTP_EXPIRED");
   }
 
-  if (user.otp !== otp) {
+  if (String(user.otp) !== String(otp)) {
     throwError("Invalid OTP.", "INVALID_OTP");
   }
 
-  const purpose = user.otp_purpose;
-
-  if (purpose === "signup") {
+  if (requestedPurpose === "signup") {
     await verifyPhone(user.id);
-
-    return {
-      purpose: "signup",
-    };
+    return { purpose: "signup" };
   }
 
-  await clearOtp(user.id);
+  if (requestedPurpose === "forgot_password") {
+    await clearOtp(user.id);
 
-  if (purpose === "forgot_password") {
     const resetToken = jwt.sign(
       {
         sub: user.id,
         type: "password_reset",
       },
       process.env.JWT_ACCESS_SECRET,
-      {
-        expiresIn: "10m",
-      },
+      { expiresIn: "10m" },
     );
 
     return {
@@ -341,62 +326,65 @@ export const resendOtp = async ({ phone, purpose, userId }) => {
 
   if (purpose === "profile") {
     if (!userId) {
-      const error = new Error("Authentication required.");
-      error.code = "AUTHENTICATION_REQUIRED";
-      throw error;
+      throwError("Authentication required.", "AUTHENTICATION_REQUIRED");
     }
 
     user = await findUserById(userId);
 
     if (!user) {
-      const error = new Error("User not found.");
-      error.code = "USER_NOT_FOUND";
-      throw error;
+      throwError("User not found.", "USER_NOT_FOUND");
+    }
+
+    if (Number(user.is_account_deleted) === 1) {
+      throwError("Account is pending deletion.", "ACCOUNT_DELETION_PENDING");
     }
 
     if (Number(user.is_oauth_login) !== 1) {
-      const error = new Error(
+      throwError(
         "Only social login users can add a phone number.",
+        "PROFILE_PHONE_NOT_ALLOWED",
       );
-      error.code = "PROFILE_PHONE_NOT_ALLOWED";
-      throw error;
     }
 
     const existingPhoneUser = await findUserByPhone(phone);
 
     if (existingPhoneUser && Number(existingPhoneUser.id) !== Number(user.id)) {
-      const error = new Error("Phone number is already registered.");
-      error.code = "PHONE_ALREADY_REGISTERED";
-      throw error;
+      throwError(
+        "Phone number is already registered.",
+        "PHONE_ALREADY_REGISTERED",
+      );
     }
+
+    if (user.phone === phone && Number(user.is_phone_verified) === 1) {
+      throwError("Phone number is already verified.", "PHONE_ALREADY_VERIFIED");
+    }
+
+    await setProfilePhoneForOtp(user.id, phone);
   } else {
     user = await findUserByPhone(phone);
 
     if (!user && purpose === "signup") {
-      const userId = await createUser({
+      const newUserId = await createUser({
         name: "",
         phone,
         passwordHash: "",
+        otpPurpose: null,
       });
 
-      user = await findUserById(userId);
+      user = await findUserById(newUserId);
     }
 
     if (!user) {
       throwError("User not found.", "USER_NOT_FOUND");
     }
-  }
 
-  if (user.is_account_deleted === 1) {
-    const error = new Error("Account is pending deletion.");
-    error.code = "ACCOUNT_DELETION_PENDING";
-    throw error;
-  }
+    if (Number(user.is_account_deleted) === 1) {
+      throwError("Account is pending deletion.", "ACCOUNT_DELETION_PENDING");
+    }
 
-  if (purpose === "signup" && user.is_phone_verified === 1) {
-    const error = new Error("Phone number is already verified.");
-    error.code = "PHONE_ALREADY_VERIFIED";
-    throw error;
+    if (purpose === "signup" && Number(user.is_phone_verified) === 1) {
+      throwError("Phone number is already verified.", "PHONE_ALREADY_VERIFIED");
+    }
   }
 
   const otp = generateOtp();
@@ -411,22 +399,7 @@ export const resendOtp = async ({ phone, purpose, userId }) => {
 
   await deliverOtp(phone, otp);
 
-  return {
-    otp,
-    ...(purpose === "profile"
-      ? {
-          challengeToken: jwt.sign(
-            {
-              sub: user.id,
-              phone,
-              type: "profile_phone_verification",
-            },
-            process.env.JWT_ACCESS_SECRET,
-            { expiresIn: "5m" },
-          ),
-        }
-      : {}),
-  };
+  return { otp };
 };
 
 export const login = async ({ phone, password, reactivate }) => {
