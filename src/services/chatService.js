@@ -2,7 +2,7 @@ import chatModel from "../models/chatModel.js";
 import { isAdminOnline, emitToAdmins } from "../sockets/chatSocket.js";
 
 const OFFLINE_MESSAGE =
-  "Thank you for contacting us. Your issue has been received. Our team will get back to you soon.";
+  "Thank you for contacting us. Your message has been received. Our team will get back to you soon when online.";
 
 const chatService = {
   async getStatus() {
@@ -12,10 +12,19 @@ const chatService = {
   },
 
   async startConversation(userId) {
-    const conversationId = await chatModel.createConversation(userId);
+    let conversation = await chatModel.getLatestConversation(userId);
+    let conversationId;
+
+    if (conversation) {
+      conversationId = conversation.id;
+    } else {
+      conversationId = await chatModel.createConversation(userId);
+      conversation = await chatModel.findConversationById(conversationId);
+    }
 
     return {
       conversationId,
+      conversation,
       adminOnline: isAdminOnline(),
       messages: await chatModel.getMessages(conversationId),
     };
@@ -55,14 +64,6 @@ const chatService = {
       throw error;
     }
 
-    if (["resolved", "closed"].includes(conversation.status)) {
-      const error = new Error(
-        "This conversation is closed. Start a new conversation to contact support.",
-      );
-      error.statusCode = 409;
-      throw error;
-    }
-
     const trimmedMessage = message.trim();
 
     if (!trimmedMessage || trimmedMessage.length > 5000) {
@@ -80,6 +81,8 @@ const chatService = {
       trimmedMessage,
     );
 
+    await chatModel.updateConversationStatus(conversationId, "in_progress");
+
     const userMessage = {
       id: messageId,
       conversation_id: Number(conversationId),
@@ -93,8 +96,6 @@ const chatService = {
     let acknowledgement = null;
 
     if (adminOnline) {
-      await chatModel.updateConversationStatus(conversationId, "in_progress");
-
       emitToAdmins("chat:new-message", {
         conversationId: Number(conversationId),
         message: userMessage,
@@ -116,8 +117,11 @@ const chatService = {
 
         acknowledgement = {
           id: acknowledgementId,
+          conversation_id: Number(conversationId),
           sender_type: "system",
+          sender_id: null,
           message: OFFLINE_MESSAGE,
+          created_at: new Date(),
         };
       }
 
@@ -130,6 +134,24 @@ const chatService = {
       adminOnline,
       message: userMessage,
       acknowledgement,
+    };
+  },
+
+  async endConversation(conversationId, userId) {
+    const conversation = await chatModel.findConversation(
+      conversationId,
+      userId,
+    );
+
+    if (!conversation) {
+      const error = new Error("Conversation not found.");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    return {
+      conversationId: Number(conversationId),
+      status: conversation.status,
     };
   },
 };

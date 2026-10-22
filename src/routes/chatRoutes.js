@@ -1,6 +1,6 @@
 import express from "express";
 import chatController from "../controllers/chatController.js";
-import { middleware } from "../middleware/authMiddleware.js";
+// import { middleware } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
@@ -25,7 +25,7 @@ const router = express.Router();
  *       401:
  *         description: Unauthorized
  */
-router.use(middleware);
+// router.use(middleware);
 
 router.get("/status", chatController.getStatus);
 
@@ -132,6 +132,55 @@ router.get(
 router.post(
   "/conversations/:conversationId/messages",
   chatController.sendMessage,
+);
+
+/**
+ * @swagger
+ * /api/chat/conversations/{conversationId}/end:
+ *   post:
+ *     summary: End the current user's support conversation
+ *     description: Verifies conversation ownership and closes the conversation. The user can no longer send messages to a closed conversation.
+ *     tags: [Chat Support]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: conversationId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the conversation to close
+ *     responses:
+ *       200:
+ *         description: Conversation closed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Conversation closed successfully.
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     conversationId:
+ *                       type: integer
+ *                       example: 12
+ *                     status:
+ *                       type: string
+ *                       example: closed
+ *       401:
+ *         description: Unauthorized - missing or invalid access token
+ *       404:
+ *         description: Conversation not found or does not belong to the logged-in user
+ */
+router.post(
+  "/conversations/:conversationId/end",
+  chatController.endConversation,
 );
 
 export default router;

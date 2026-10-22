@@ -1,6 +1,10 @@
 import express from "express";
+import cors from "cors";
 import "dotenv/config";
 import swaggerUi from "swagger-ui-express";
+
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import adminRoutes from "./src/routes/adminAuthRoutes.js";
 import adminEnquiryRoutes from "./src/routes/adminEnquiryRoutes.js";
@@ -36,6 +40,21 @@ import swaggerDocument from "./src/configs/swagger/swagger.js";
 import { startAccountDeletionJob } from "./src/jobs/accountDeletionCron.js";
 
 const app = express();
+
+const allowedOrigins = ["http://127.0.0.1:5500", "http://localhost:5500"];
+
+app.use(
+  cors({
+    origin: allowedOrigins,
+    methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }),
+);
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+app.use("/icons", express.static(path.join(__dirname, "public", "icons")));
 
 app.use(
   express.json({
