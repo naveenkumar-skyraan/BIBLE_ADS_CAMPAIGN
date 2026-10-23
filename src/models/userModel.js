@@ -3,25 +3,66 @@ import pool from "../configs/database/db.js";
 export const findUserByPhone = async (phone) => {
   const [rows] = await pool.execute(
     `SELECT
-            id,
-            name,
-            phone,
-            email,
-            password_hash,
-            is_phone_verified,
-            otp,
-            otp_expires_at,
-            otp_purpose,
-            refresh_token,
-            refresh_token_expires_at,
-            created_at,
-            updated_at,
-            is_account_deleted,
-            account_deleted_at
-        FROM users
-        WHERE phone = ?
-        LIMIT 1`,
+        id,
+        name,
+        phone,
+        email,
+        is_email_verified,
+        email_otp,
+        email_otp_expires_at,
+        email_otp_purpose,
+        password_hash,
+        is_phone_verified,
+        is_oauth_login,
+        oauth_provider_id,
+        oauth_provider,
+        otp,
+        otp_expires_at,
+        otp_purpose,
+        refresh_token,
+        refresh_token_expires_at,
+        created_at,
+        updated_at,
+        is_account_deleted,
+        account_deleted_at
+     FROM users
+     WHERE phone = ?
+     LIMIT 1`,
     [phone],
+  );
+
+  return rows[0] || null;
+};
+
+export const findUserByEmail = async (email) => {
+  const [rows] = await pool.execute(
+    `SELECT
+        id,
+        name,
+        phone,
+        email,
+        is_email_verified,
+        email_otp,
+        email_otp_expires_at,
+        email_otp_purpose,
+        password_hash,
+        is_phone_verified,
+        is_oauth_login,
+        oauth_provider_id,
+        oauth_provider,
+        otp,
+        otp_expires_at,
+        otp_purpose,
+        refresh_token,
+        refresh_token_expires_at,
+        created_at,
+        updated_at,
+        is_account_deleted,
+        account_deleted_at
+     FROM users
+     WHERE email = ?
+     LIMIT 1`,
+    [email.trim().toLowerCase()],
   );
 
   return rows[0] || null;
@@ -86,7 +127,7 @@ export const createUser = async ({
     [
       name,
       phone ?? null,
-      email || "",
+      email?.trim().toLowerCase() || null,
       passwordHash || "",
       isPhoneVerified,
       otp ?? null,
@@ -160,7 +201,13 @@ export const verifyPhone = async (userId) => {
   );
 };
 
-export const completePendingSignup = async ({ userId, name, passwordHash }) => {
+export const completePendingSignup = async ({
+  userId,
+  name,
+  email,
+  phone,
+  passwordHash,
+}) => {
   const [result] = await pool.execute(
     `UPDATE users
      SET
@@ -168,9 +215,14 @@ export const completePendingSignup = async ({ userId, name, passwordHash }) => {
        password_hash = ?,
        updated_at = CURRENT_TIMESTAMP
      WHERE id = ?
+       AND email = ?
+       AND phone = ?
+       AND is_email_verified = 1
        AND is_phone_verified = 1
+       AND is_oauth_login = 0
+       AND is_account_deleted = 0
        AND (password_hash IS NULL OR password_hash = '')`,
-    [name, passwordHash, userId],
+    [name, passwordHash, userId, email.trim().toLowerCase(), phone],
   );
 
   return result.affectedRows;
@@ -186,6 +238,56 @@ export const clearOtp = async (userId) => {
         WHERE id = ?`,
     [userId],
   );
+};
+
+export const createPendingEmailVerification = async ({
+  email,
+  emailOtp,
+  emailOtpExpiresAt,
+}) => {
+  const [result] = await pool.execute(
+    `INSERT INTO users (
+       name,
+       email,
+       is_email_verified,
+       email_otp,
+       email_otp_expires_at,
+       email_otp_purpose,
+       is_phone_verified,
+       is_oauth_login,
+       oauth_provider,
+       is_account_deleted
+     )
+     VALUES ('', ?, 0, ?, ?, 'signup', 0, 0, 0, 0)`,
+    [email.trim().toLowerCase(), emailOtp, emailOtpExpiresAt],
+  );
+
+  return result.insertId;
+};
+
+export const updateSignupPhoneForOtp = async ({
+  userId,
+  phone,
+  otp,
+  otpExpiresAt,
+}) => {
+  const [result] = await pool.execute(
+    `UPDATE users
+     SET
+       phone = ?,
+       is_phone_verified = 0,
+       otp = ?,
+       otp_expires_at = ?,
+       otp_purpose = 'signup',
+       updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?
+       AND is_email_verified = 1
+       AND is_oauth_login = 0
+       AND is_account_deleted = 0`,
+    [phone, otp, otpExpiresAt, userId],
+  );
+
+  return result.affectedRows;
 };
 
 export const updatePassword = async (userId, passwordHash) => {
@@ -288,5 +390,143 @@ export const updateUserEmailIfEmpty = async (userId, email) => {
      WHERE id = ?
        AND (email IS NULL OR email = '')`,
     [email, userId],
+  );
+};
+
+export const createPendingEmailUser = async ({
+  name,
+  email,
+  phone,
+  passwordHash,
+  emailOtp,
+  emailOtpExpiresAt,
+  phoneOtp,
+  phoneOtpExpiresAt,
+}) => {
+  const [result] = await pool.execute(
+    `INSERT INTO users (
+        name,
+        email,
+        phone,
+        is_email_verified,
+        email_otp,
+        email_otp_expires_at,
+        email_otp_purpose,
+        password_hash,
+        is_phone_verified,
+        otp,
+        otp_expires_at,
+        otp_purpose,
+        is_oauth_login,
+        oauth_provider,
+        is_account_deleted
+     )
+     VALUES (?, ?, ?, 0, ?, ?, 'signup', ?, 0, ?, ?, 'signup', 0, 0, 0)`,
+    [
+      name,
+      email.trim().toLowerCase(),
+      phone,
+      emailOtp,
+      emailOtpExpiresAt,
+      passwordHash,
+      phoneOtp,
+      phoneOtpExpiresAt,
+    ],
+  );
+
+  return result.insertId;
+};
+
+export const updatePendingEmailSignup = async ({
+  userId,
+  name,
+  phone,
+  passwordHash,
+  emailOtp,
+  emailOtpExpiresAt,
+  phoneOtp,
+  phoneOtpExpiresAt,
+}) => {
+  const [result] = await pool.execute(
+    `UPDATE users
+     SET
+        name = ?,
+        phone = ?,
+        password_hash = ?,
+        email_otp = ?,
+        email_otp_expires_at = ?,
+        email_otp_purpose = 'signup',
+        otp = ?,
+        otp_expires_at = ?,
+        otp_purpose = 'signup',
+        is_phone_verified = 0,
+        updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?
+       AND is_email_verified = 0
+       AND is_account_deleted = 0`,
+    [
+      name,
+      phone,
+      passwordHash,
+      emailOtp,
+      emailOtpExpiresAt,
+      phoneOtp,
+      phoneOtpExpiresAt,
+      userId,
+    ],
+  );
+
+  return result.affectedRows;
+};
+
+export const updateEmailOtp = async ({
+  userId,
+  emailOtp,
+  emailOtpExpiresAt,
+  emailOtpPurpose,
+}) => {
+  const [result] = await pool.execute(
+    `UPDATE users
+     SET
+        email_otp = ?,
+        email_otp_expires_at = ?,
+        email_otp_purpose = ?,
+        updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?
+       AND is_account_deleted = 0`,
+    [emailOtp, emailOtpExpiresAt, emailOtpPurpose, userId],
+  );
+
+  return result.affectedRows;
+};
+
+export const verifyEmailAddress = async (userId) => {
+  const [result] = await pool.execute(
+    `UPDATE users
+     SET
+        is_email_verified = 1,
+        email_otp = NULL,
+        email_otp_expires_at = NULL,
+        email_otp_purpose = NULL,
+        updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?
+       AND email_otp_purpose = 'signup'
+       AND is_account_deleted = 0`,
+    [userId],
+  );
+
+  return result.affectedRows;
+};
+
+export const clearEmailOtp = async (userId) => {
+  await pool.execute(
+    `UPDATE users
+     SET
+        email_otp = NULL,
+        email_otp_expires_at = NULL,
+        email_otp_purpose = NULL,
+        updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?`,
+    [userId],
   );
 };

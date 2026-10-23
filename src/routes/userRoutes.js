@@ -2,6 +2,8 @@ import express from "express";
 
 import {
   signupController,
+  verifyEmailController,
+  resendEmailOtpController,
   verifyOtpController,
   resendOtpController,
   loginController,
@@ -24,7 +26,8 @@ const router = express.Router();
  *   post:
  *     tags:
  *       - Authentication
- *     summary: Complete signup after OTP verification
+ *     summary: Register using name, email, phone number and password
+ *     description: Creates a pending account and sends verification OTPs to both email and phone. The account is completed only after both are verified.
  *     requestBody:
  *       required: true
  *       content:
@@ -33,13 +36,64 @@ const router = express.Router();
  *             $ref: '#/components/schemas/SignupRequest'
  *     responses:
  *       201:
- *         description: Signup successful; user details and authentication tokens returned
+ *         description: Verification codes sent to email and phone
  *       400:
  *         description: Validation failed
  *       409:
- *         description: Phone already registered or account deletion pending
+ *         description: Email or phone already registered, or account deletion pending
  */
 router.post("/signup", signupController);
+
+/**
+ * @swagger
+ * /api/auth/verify-email:
+ *   post:
+ *     tags:
+ *       - Authentication
+ *     summary: Verify email OTP for signup or password reset
+ *     description: For signup, email verification alone does not complete registration. Tokens are issued after both email and phone verification are complete.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/VerifyEmailRequest'
+ *     responses:
+ *       200:
+ *         description: Email verified or password reset token generated
+ *       400:
+ *         description: Invalid or expired OTP
+ *       404:
+ *         description: User not found
+ *       409:
+ *         description: Account deletion pending
+ */
+router.post("/verify-email", verifyEmailController);
+
+/**
+ * @swagger
+ * /api/auth/resend-email-otp:
+ *   post:
+ *     tags:
+ *       - Authentication
+ *     summary: Resend email verification or password reset OTP
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ResendEmailOtpRequest'
+ *     responses:
+ *       200:
+ *         description: OTP sent successfully
+ *       400:
+ *         description: Invalid request
+ *       404:
+ *         description: User not found
+ *       409:
+ *         description: Account deletion pending
+ */
+router.post("/resend-email-otp", resendEmailOtpController);
 
 /**
  * @swagger
@@ -47,7 +101,10 @@ router.post("/signup", signupController);
  *   post:
  *     tags:
  *       - Authentication
- *     summary: Verify OTP
+ *     summary: Verify phone OTP for an authenticated user's profile
+ *     description: This route is for profile phone verification, not signup verification.
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -56,9 +113,11 @@ router.post("/signup", signupController);
  *             $ref: '#/components/schemas/VerifyOtpRequest'
  *     responses:
  *       200:
- *         description: OTP verified successfully
+ *         description: Phone OTP verified successfully
  *       400:
  *         description: Invalid or expired OTP
+ *       401:
+ *         description: Unauthorized
  *       404:
  *         description: User not found
  *       409:
@@ -66,13 +125,8 @@ router.post("/signup", signupController);
  */
 router.post(
   "/verify-otp",
-  (req, res, next) => {
-    if (req.body?.purpose === "profile") {
-      return middleware(req, res, next);
-    }
-
-    return next();
-  },
+  (req, res, next) =>
+    req.body?.purpose === "profile" ? middleware(req, res, next) : next(),
   verifyOtpController,
 );
 /**
@@ -81,7 +135,10 @@ router.post(
  *   post:
  *     tags:
  *       - Authentication
- *     summary: Resend OTP
+ *     summary: Resend phone OTP for an authenticated user's profile
+ *     description: This route is for profile phone verification, not signup verification.
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -90,9 +147,11 @@ router.post(
  *             $ref: '#/components/schemas/ResendOtpRequest'
  *     responses:
  *       200:
- *         description: OTP generated successfully
+ *         description: Phone OTP sent successfully
  *       400:
  *         description: Invalid request
+ *       401:
+ *         description: Unauthorized
  *       404:
  *         description: User not found
  *       409:
@@ -100,13 +159,8 @@ router.post(
  */
 router.post(
   "/resend-otp",
-  (req, res, next) => {
-    if (req.body?.purpose === "profile") {
-      return middleware(req, res, next);
-    }
-
-    return next();
-  },
+  (req, res, next) =>
+    req.body?.purpose === "profile" ? middleware(req, res, next) : next(),
   resendOtpController,
 );
 /**
@@ -115,7 +169,7 @@ router.post(
  *   post:
  *     tags:
  *       - Authentication
- *     summary: Login user
+ *     summary: Login using email and password
  *     requestBody:
  *       required: true
  *       content:
@@ -150,7 +204,7 @@ router.post(
  *       401:
  *         description: Invalid credentials
  *       403:
- *         description: Phone number not verified
+ *         description: Email not verified
  *       409:
  *         description: Account deletion pending
  *       410:
@@ -210,7 +264,7 @@ router.post("/logout", middleware, logoutController);
  *   post:
  *     tags:
  *       - Authentication
- *     summary: Generate password reset OTP
+ *     summary: Generate password reset OTP using email
  *     requestBody:
  *       required: true
  *       content:
@@ -219,7 +273,7 @@ router.post("/logout", middleware, logoutController);
  *             $ref: '#/components/schemas/ForgotPasswordRequest'
  *     responses:
  *       200:
- *         description: OTP generated for password reset
+ *         description: Password reset OTP sent to email
  *       400:
  *         description: Validation failed
  *       404:
@@ -235,7 +289,7 @@ router.post("/forgot-password", forgotPasswordController);
  *   post:
  *     tags:
  *       - Authentication
- *     summary: Reset password
+ *     summary: Reset password using a verified reset token
  *     requestBody:
  *       required: true
  *       content:

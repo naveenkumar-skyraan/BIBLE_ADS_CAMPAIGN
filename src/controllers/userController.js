@@ -1,5 +1,7 @@
 import {
   signup,
+  verifyEmail,
+  resendEmailOtp,
   verifyOtp,
   resendOtp,
   login,
@@ -14,6 +16,8 @@ import {
 
 import {
   signupSchema,
+  verifyEmailSchema,
+  resendEmailOtpSchema,
   verifyOtpSchema,
   resendOtpSchema,
   loginSchema,
@@ -47,7 +51,7 @@ export const signupController = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: "Signup successful.",
+      message: "Signup completed successfully.",
       data: {
         user: result.user,
         access_token: result.accessToken,
@@ -56,12 +60,108 @@ export const signupController = async (req, res) => {
     });
   } catch (error) {
     const statusCodes = {
+      EMAIL_ALREADY_REGISTERED: 409,
       PHONE_ALREADY_REGISTERED: 409,
       ACCOUNT_DELETION_PENDING: 409,
+      EMAIL_NOT_VERIFIED: 403,
       PHONE_NOT_VERIFIED: 403,
+      PHONE_VERIFICATION_MISMATCH: 400,
+      SIGNUP_COMPLETION_FAILED: 409,
     };
 
-    console.error(error);
+    return res.status(statusCodes[error.code] || 500).json({
+      success: false,
+      code: error.code,
+      message: statusCodes[error.code]
+        ? error.message
+        : "Internal server error",
+    });
+  }
+};
+
+export const verifyEmailController = async (req, res) => {
+  try {
+    const { error, value } = validate(verifyEmailSchema, req.body);
+
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: "Validation failed",
+        errors: error.details.map((detail) => detail.message),
+      });
+    }
+
+    const result = await verifyEmail(value);
+
+    if (result.purpose === "forgot_password") {
+      return res.status(200).json({
+        success: true,
+        message: "Email OTP verified successfully.",
+        data: {
+          reset_token: result.resetToken,
+        },
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Email verified successfully. Please verify your phone number.",
+      data: {
+        email_verified: result.emailVerified,
+        phone_verified: result.phoneVerified,
+        signup_completed: false,
+      },
+    });
+  } catch (error) {
+    const statusCodes = {
+      USER_NOT_FOUND: 404,
+      ACCOUNT_DELETION_PENDING: 409,
+      INVALID_EMAIL_OTP: 400,
+      EMAIL_OTP_NOT_FOUND: 400,
+      EMAIL_OTP_EXPIRED: 400,
+      EMAIL_VERIFICATION_FAILED: 400,
+    };
+
+    return res.status(statusCodes[error.code] || 500).json({
+      success: false,
+      code: error.code,
+      message: statusCodes[error.code]
+        ? error.message
+        : "Internal server error",
+    });
+  }
+};
+
+export const resendEmailOtpController = async (req, res) => {
+  try {
+    const { error, value } = validate(resendEmailOtpSchema, req.body);
+
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: "Validation failed",
+        errors: error.details.map((detail) => detail.message),
+      });
+    }
+
+    const result = await resendEmailOtp(value);
+
+    return res.status(200).json({
+      success: true,
+      message: "Verification code sent to your email.",
+      data: {
+        ...(result.otp ? { otp: result.otp } : {}),
+      },
+    });
+  } catch (error) {
+    const statusCodes = {
+      USER_NOT_FOUND: 404,
+      ACCOUNT_DELETION_PENDING: 409,
+      EMAIL_ALREADY_VERIFIED: 409,
+      EMAIL_ALREADY_REGISTERED: 409,
+      PASSWORD_RESET_UNAVAILABLE: 400,
+      EMAIL_OTP_UPDATE_FAILED: 409,
+    };
 
     return res.status(statusCodes[error.code] || 500).json({
       success: false,
@@ -123,6 +223,7 @@ export const verifyOtpController = async (req, res) => {
       AUTHENTICATION_REQUIRED: 401,
       PHONE_VERIFICATION_MISMATCH: 400,
       PHONE_ALREADY_VERIFIED: 409,
+      EMAIL_NOT_VERIFIED: 403,
     };
 
     return res.status(statusCodes[error.code] || 500).json({
@@ -162,13 +263,19 @@ export const resendOtpController = async (req, res) => {
       },
     });
   } catch (error) {
-    const statusCodes = {
+        const statusCodes = {
       USER_NOT_FOUND: 404,
       ACCOUNT_DELETION_PENDING: 409,
       PHONE_ALREADY_VERIFIED: 409,
       PHONE_ALREADY_REGISTERED: 409,
       PROFILE_PHONE_NOT_ALLOWED: 403,
       AUTHENTICATION_REQUIRED: 401,
+      EMAIL_REQUIRED: 400,
+      EMAIL_NOT_VERIFIED: 403,
+      EMAIL_ALREADY_REGISTERED: 409,
+      SIGNUP_UPDATE_FAILED: 409,
+      PHONE_UPDATE_FAILED: 409,
+      INVALID_OTP_PURPOSE: 400,
     };
 
     return res.status(statusCodes[error.code] || 500).json({
@@ -209,7 +316,7 @@ export const loginController = async (req, res) => {
       INVALID_CREDENTIALS: 401,
       ACCOUNT_DELETION_PENDING: 409,
       ACCOUNT_DELETION_EXPIRED: 410,
-      PHONE_NOT_VERIFIED: 403,
+      EMAIL_NOT_VERIFIED: 403,
     };
 
     return res.status(statusCodes[error.code] || 500).json({
@@ -298,11 +405,10 @@ export const forgotPasswordController = async (req, res) => {
       });
     }
 
-    const result = await forgotPassword(value.phone);
-
+    const result = await forgotPassword(value.email);
     return res.status(200).json({
       success: true,
-      message: "OTP generated for password reset.",
+      message: "Password reset verification code sent to your email.",
       data: {
         ...(process.env.STATIC_OTP?.trim().toLowerCase() === "true"
           ? { otp: result.otp }
@@ -313,6 +419,7 @@ export const forgotPasswordController = async (req, res) => {
     const statusCodes = {
       USER_NOT_FOUND: 404,
       ACCOUNT_DELETION_PENDING: 409,
+      PASSWORD_RESET_UNAVAILABLE: 400,
     };
 
     return res.status(statusCodes[error.code] || 500).json({

@@ -1,14 +1,20 @@
 const authSchema = {
   SignupRequest: {
     type: "object",
-    required: ["name", "phone", "password"],
+    required: ["name", "email", "phone", "password"],
     properties: {
       name: {
         type: "string",
         example: "Naveen Kumar",
       },
+      email: {
+        type: "string",
+        format: "email",
+        example: "user@example.com",
+      },
       phone: {
         type: "string",
+        pattern: "^[0-9]{10}$",
         example: "9876543210",
       },
       password: {
@@ -19,13 +25,14 @@ const authSchema = {
     },
   },
 
-  VerifyOtpRequest: {
+  VerifyEmailRequest: {
     type: "object",
-    required: ["phone", "otp", "purpose"],
+    required: ["email", "otp", "purpose"],
     properties: {
-      phone: {
+      email: {
         type: "string",
-        example: "9876543210",
+        format: "email",
+        example: "user@example.com",
       },
       otp: {
         type: "string",
@@ -33,8 +40,47 @@ const authSchema = {
       },
       purpose: {
         type: "string",
-        enum: ["signup", "forgot_password", "profile"],
-        example: "profile",
+        enum: ["signup", "forgot_password"],
+        example: "signup",
+      },
+    },
+  },
+
+  ResendEmailOtpRequest: {
+    type: "object",
+    required: ["email", "purpose"],
+    properties: {
+      email: {
+        type: "string",
+        format: "email",
+        example: "user@example.com",
+      },
+      purpose: {
+        type: "string",
+        enum: ["signup", "forgot_password"],
+        example: "signup",
+      },
+    },
+  },
+
+  VerifyOtpRequest: {
+    type: "object",
+    required: ["phone", "otp", "purpose"],
+    properties: {
+      phone: {
+        type: "string",
+        pattern: "^[0-9]{10}$",
+        example: "9876543210",
+      },
+      otp: {
+        type: "string",
+        pattern: "^[0-9]{4,6}$",
+        example: "1234",
+      },
+      purpose: {
+        type: "string",
+        enum: ["signup", "profile"],
+        example: "signup",
       },
     },
   },
@@ -45,11 +91,19 @@ const authSchema = {
     properties: {
       phone: {
         type: "string",
+        pattern: "^[0-9]{10}$",
         example: "9876543210",
+      },
+      email: {
+        type: "string",
+        format: "email",
+        example: "user@example.com",
+        description:
+          "Required when purpose is signup; omitted for profile verification.",
       },
       purpose: {
         type: "string",
-        enum: ["signup", "forgot_password", "profile"],
+        enum: ["signup", "profile"],
         example: "signup",
       },
     },
@@ -57,11 +111,12 @@ const authSchema = {
 
   LoginRequest: {
     type: "object",
-    required: ["phone", "password"],
+    required: ["email", "password"],
     properties: {
-      phone: {
+      email: {
         type: "string",
-        example: "9876543210",
+        format: "email",
+        example: "user@example.com",
       },
       password: {
         type: "string",
@@ -88,11 +143,12 @@ const authSchema = {
 
   ForgotPasswordRequest: {
     type: "object",
-    required: ["phone"],
+    required: ["email"],
     properties: {
-      phone: {
+      email: {
         type: "string",
-        example: "9876543210",
+        format: "email",
+        example: "user@example.com",
       },
     },
   },
@@ -120,12 +176,41 @@ const authSchema = {
 
   DeleteAccountRequest: {
     type: "object",
-    required: ["password"],
+    properties: {},
+  },
+
+  ChangePasswordRequest: {
+    type: "object",
+    required: ["current_password", "new_password", "confirm_password"],
     properties: {
-      password: {
+      current_password: {
         type: "string",
         format: "password",
         example: "Password@123",
+      },
+      new_password: {
+        type: "string",
+        format: "password",
+        example: "NewPassword@123",
+      },
+      confirm_password: {
+        type: "string",
+        format: "password",
+        example: "NewPassword@123",
+      },
+    },
+  },
+
+  AccountDeletionFeedbackRequest: {
+    type: "object",
+    properties: {
+      reason: {
+        type: "string",
+        example: "Not using the application anymore",
+      },
+      other_reason: {
+        type: "string",
+        example: "",
       },
     },
   },
@@ -143,11 +228,13 @@ const authSchema = {
       },
       phone: {
         type: "string",
-        example: "9876543210",
+        nullable: true,
+        example: null,
       },
       email: {
         type: "string",
-        example: "",
+        format: "email",
+        example: "user@example.com",
       },
       has_business: {
         type: "integer",

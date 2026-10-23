@@ -39,6 +39,10 @@ const options = {
       schemas: {
         SignupRequest: authSchema.SignupRequest,
         VerifyOtpRequest: authSchema.VerifyOtpRequest,
+        VerifyEmailRequest: authSchema.VerifyEmailRequest,
+        ResendEmailOtpRequest: authSchema.ResendEmailOtpRequest,
+        VerifySignupPhoneRequest: authSchema.VerifySignupPhoneRequest,
+        ResendSignupPhoneOtpRequest: authSchema.ResendSignupPhoneOtpRequest,
         ResendOtpRequest: authSchema.ResendOtpRequest,
         LoginRequest: authSchema.LoginRequest,
         RefreshTokenRequest: authSchema.RefreshTokenRequest,
