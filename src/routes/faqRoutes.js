@@ -8,7 +8,7 @@ const router = express.Router();
  * @swagger
  * tags:
  *   name: FAQs
- *   description: Public FAQ APIs for the Ads Campaign app
+ *   description: FAQ APIs for the Ads Campaign app
  */
 
 /**
@@ -17,6 +17,8 @@ const router = express.Router();
  *   get:
  *     summary: Get active FAQ categories
  *     tags: [FAQs]
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: FAQ categories fetched successfully
@@ -33,8 +35,10 @@ router.get("/categories", middleware, faqController.getCategories);
  * @swagger
  * /api/faqs/categories/{categoryId}/questions:
  *   get:
- *     summary: Get published questions for a category
+ *     summary: Get published questions and answers for a category
  *     tags: [FAQs]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: categoryId
@@ -44,7 +48,7 @@ router.get("/categories", middleware, faqController.getCategories);
  *         description: FAQ category ID
  *     responses:
  *       200:
- *         description: FAQ questions fetched successfully
+ *         description: FAQ questions and answers fetched successfully
  *         content:
  *           application/json:
  *             schema:
@@ -59,32 +63,5 @@ router.get(
   middleware,
   faqController.getQuestionsByCategory,
 );
-
-/**
- * @swagger
- * /api/faqs/questions/{questionId}:
- *   get:
- *     summary: Get FAQ question and answer details
- *     tags: [FAQs]
- *     parameters:
- *       - in: path
- *         name: questionId
- *         required: true
- *         schema:
- *           type: integer
- *         description: FAQ question ID
- *     responses:
- *       200:
- *         description: FAQ details fetched successfully
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/FAQQuestionDetailResponse'
- *       404:
- *         description: FAQ question not found
- *       500:
- *         description: Internal server error
- */
-router.get("/questions/:questionId", middleware, faqController.getQuestionById);
 
 export default router;
