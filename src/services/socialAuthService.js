@@ -13,13 +13,14 @@ import {
 
 import {
   findUserById,
+  findUserByEmail,
   createUser,
   updateUserEmailIfEmpty,
+  updateUserSocialLogin,
 } from "../models/userModel.js";
 
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import crypto from "crypto";
 
 const REFRESH_SESSION_DAYS = Number(process.env.JWT_REFRESH_DAYS);
 
@@ -51,43 +52,33 @@ const generateRefreshToken = (userId, expiresInSeconds) => {
 
 const getRefreshSessionExpiry = () => {
   const expiry = new Date();
-
   expiry.setDate(expiry.getDate() + REFRESH_SESSION_DAYS);
-
   return expiry;
 };
 
 const getRemainingSeconds = (expiresAt) => {
   const remainingMs = new Date(expiresAt).getTime() - Date.now();
 
-  if (remainingMs <= 0) {
-    return 0;
-  }
+  if (remainingMs <= 0) return 0;
 
   return Math.floor(remainingMs / 1000);
 };
 
 const createSocialTokens = async (userId) => {
   const accessToken = generateAccessToken(userId);
-
   const refreshSessionExpiry = getRefreshSessionExpiry();
-
   const remainingSeconds = getRemainingSeconds(refreshSessionExpiry);
 
   if (remainingSeconds <= 0) {
     const error = new Error(
       "Refresh session has expired. Please log in again.",
     );
-
     error.code = "INVALID_REFRESH_TOKEN";
-
     throw error;
   }
 
   const refreshToken = generateRefreshToken(userId, remainingSeconds);
-
   const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
-
   const { updateRefreshToken } = await import("../models/userModel.js");
 
   await updateRefreshToken({
@@ -96,10 +87,13 @@ const createSocialTokens = async (userId) => {
     refreshTokenExpiresAt: refreshSessionExpiry,
   });
 
-  return {
-    accessToken,
-    refreshToken,
-  };
+  return { accessToken, refreshToken };
+};
+
+const throwError = (message, code) => {
+  const error = new Error(message);
+  error.code = code;
+  throw error;
 };
 
 export const socialLogin = async ({
@@ -111,6 +105,8 @@ export const socialLogin = async ({
   deviceToken,
   deviceType,
 }) => {
+  const normalizedEmail = email?.trim().toLowerCase() || "";
+
   let socialAccount = await findSocialAccount({
     provider,
     providerUserId,
@@ -122,46 +118,62 @@ export const socialLogin = async ({
     user = await findUserById(socialAccount.user_id);
 
     if (!user) {
-      const error = new Error("User account not found.");
-
-      error.code = "USER_NOT_FOUND";
-
-      throw error;
+      throwError("User account not found.", "USER_NOT_FOUND");
     }
 
-    if (user.is_account_deleted === 1) {
-      const error = new Error("Account is pending deletion.");
-
-      error.code = "ACCOUNT_DELETION_PENDING";
-
-      throw error;
+    if (Number(user.is_account_deleted) === 1) {
+      throwError("Account is pending deletion.", "ACCOUNT_DELETION_PENDING");
     }
 
-    if (email && email.trim() && !user.email) {
-      await updateUserEmailIfEmpty(user.id, email.trim());
+    if (normalizedEmail && !user.email) {
+      await updateUserEmailIfEmpty(user.id, normalizedEmail);
       user = await findUserById(user.id);
     }
   } else {
-    const userId = await createUser({
-      name,
-      phone: null,
-      email,
-      passwordHash: "",
-      otp: null,
-      otpExpiresAt: null,
-      otpPurpose: null,
-      isOauthLogin: 1,
-      oauthProviderId: providerUserId,
-      oauthProvider: provider,
-    });
+    if (normalizedEmail) {
+      user = await findUserByEmail(normalizedEmail);
+    }
 
-    await createSocialAccount({
-      userId,
-      provider,
-      providerUserId,
-    });
+    if (user) {
+      if (Number(user.is_account_deleted) === 1) {
+        throwError("Account is pending deletion.", "ACCOUNT_DELETION_PENDING");
+      }
 
-    user = await findUserById(userId);
+      await createSocialAccount({
+        userId: user.id,
+        provider,
+        providerUserId,
+      });
+
+      await updateUserSocialLogin({
+        userId: user.id,
+        provider,
+        providerUserId,
+      });
+
+      user = await findUserById(user.id);
+    } else {
+      const userId = await createUser({
+        name: name || "",
+        phone: null,
+        email: normalizedEmail,
+        passwordHash: "",
+        otp: null,
+        otpExpiresAt: null,
+        otpPurpose: null,
+        isOauthLogin: 1,
+        oauthProviderId: providerUserId,
+        oauthProvider: provider,
+      });
+
+      await createSocialAccount({
+        userId,
+        provider,
+        providerUserId,
+      });
+
+      user = await findUserById(userId);
+    }
   }
 
   const account = await findAccountByUserId(user.id);

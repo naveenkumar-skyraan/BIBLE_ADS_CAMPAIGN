@@ -3,13 +3,19 @@ import Joi from "joi";
 export const signupSchema = Joi.object({
   name: Joi.string().trim().min(2).max(100).required(),
   email: Joi.string().trim().email().max(255).lowercase().required(),
-  phone: Joi.string().trim().pattern(/^[0-9]{10}$/).required(),
+  phone: Joi.string()
+    .trim()
+    .pattern(/^[0-9]{10}$/)
+    .required(),
   password: Joi.string().min(8).max(128).required(),
 });
 
 export const verifyEmailSchema = Joi.object({
   email: Joi.string().trim().email().max(255).lowercase().required(),
-  otp: Joi.string().trim().pattern(/^[0-9]{4,6}$/).required(),
+  otp: Joi.string()
+    .trim()
+    .pattern(/^[0-9]{4,6}$/)
+    .required(),
   purpose: Joi.string().valid("signup", "forgot_password").required(),
 });
 
@@ -19,17 +25,26 @@ export const resendEmailOtpSchema = Joi.object({
 });
 
 export const verifyOtpSchema = Joi.object({
-  phone: Joi.string().trim().pattern(/^[0-9]{10}$/).required(),
-  otp: Joi.string().trim().pattern(/^[0-9]{4,6}$/).required(),
+  phone: Joi.string()
+    .trim()
+    .pattern(/^[0-9]{10}$/)
+    .required(),
+  otp: Joi.string()
+    .trim()
+    .pattern(/^[0-9]{4,6}$/)
+    .required(),
   purpose: Joi.string().valid("signup", "profile").required(),
 });
 
 export const resendOtpSchema = Joi.object({
-  phone: Joi.string().trim().pattern(/^[0-9]{10}$/).required(),
+  phone: Joi.string()
+    .trim()
+    .pattern(/^[0-9]{10}$/)
+    .required(),
   email: Joi.when("purpose", {
     is: "signup",
     then: Joi.string().trim().email().max(255).lowercase().required(),
-    otherwise: Joi.forbidden(),
+    otherwise: Joi.string().trim().email().max(255).lowercase().optional(),
   }),
   purpose: Joi.string().valid("signup", "profile").required(),
 });

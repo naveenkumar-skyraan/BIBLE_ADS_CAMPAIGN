@@ -211,7 +211,10 @@ export const completePendingSignup = async ({
   const [result] = await pool.execute(
     `UPDATE users
      SET
-       name = ?,
+       name = CASE
+         WHEN name IS NULL OR name = '' THEN ?
+         ELSE name
+       END,
        password_hash = ?,
        updated_at = CURRENT_TIMESTAMP
      WHERE id = ?
@@ -219,7 +222,6 @@ export const completePendingSignup = async ({
        AND phone = ?
        AND is_email_verified = 1
        AND is_phone_verified = 1
-       AND is_oauth_login = 0
        AND is_account_deleted = 0
        AND (password_hash IS NULL OR password_hash = '')`,
     [name, passwordHash, userId, email.trim().toLowerCase(), phone],
@@ -227,7 +229,6 @@ export const completePendingSignup = async ({
 
   return result.affectedRows;
 };
-
 export const clearOtp = async (userId) => {
   await pool.execute(
     `UPDATE users
@@ -282,23 +283,67 @@ export const updateSignupPhoneForOtp = async ({
        updated_at = CURRENT_TIMESTAMP
      WHERE id = ?
        AND is_email_verified = 1
-       AND is_oauth_login = 0
-       AND is_account_deleted = 0`,
+       AND is_account_deleted = 0
+       AND (password_hash IS NULL OR password_hash = '')`,
     [phone, otp, otpExpiresAt, userId],
   );
 
   return result.affectedRows;
 };
 
-export const updatePassword = async (userId, passwordHash) => {
+export const updatePassword = async (
+  userId,
+  passwordHash,
+  switchToNormalLogin = false,
+) => {
   await pool.execute(
     `UPDATE users
-        SET
-            password_hash = ?,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?`,
-    [passwordHash, userId],
+     SET
+       password_hash = ?,
+       is_oauth_login = CASE WHEN ? = 1 THEN 0 ELSE is_oauth_login END,
+       oauth_provider_id = CASE WHEN ? = 1 THEN NULL ELSE oauth_provider_id END,
+       oauth_provider = CASE WHEN ? = 1 THEN 0 ELSE oauth_provider END,
+       updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?`,
+    [
+      passwordHash,
+      switchToNormalLogin ? 1 : 0,
+      switchToNormalLogin ? 1 : 0,
+      switchToNormalLogin ? 1 : 0,
+      userId,
+    ],
   );
+};
+
+export const updateUserSocialLogin = async ({
+  userId,
+  provider,
+  providerUserId,
+}) => {
+  const [result] = await pool.execute(
+    `UPDATE users
+     SET
+       is_oauth_login = CASE
+         WHEN password_hash IS NULL OR password_hash = '' THEN 1
+         ELSE is_oauth_login
+       END,
+       oauth_provider_id = CASE
+         WHEN oauth_provider_id IS NULL OR oauth_provider_id = ''
+           THEN ?
+         ELSE oauth_provider_id
+       END,
+       oauth_provider = CASE
+         WHEN oauth_provider IS NULL OR oauth_provider = 0
+           THEN ?
+         ELSE oauth_provider
+       END,
+       updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?
+       AND is_account_deleted = 0`,
+    [providerUserId, provider, userId],
+  );
+
+  return result.affectedRows;
 };
 
 export const updateRefreshToken = async ({

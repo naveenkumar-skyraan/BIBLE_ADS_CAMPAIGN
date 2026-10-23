@@ -174,7 +174,7 @@ export const signup = async ({ name, email, phone, password }) => {
     );
   }
 
-  if (Number(user.is_oauth_login) === 1) {
+  if (Number(user.is_oauth_login) === 1 && user.password_hash) {
     throwError(
       "Email address is already registered.",
       "EMAIL_ALREADY_REGISTERED",
@@ -318,7 +318,7 @@ export const resendEmailOtp = async ({ email, purpose }) => {
   }
 
   if (purpose === "signup") {
-    if (user && Number(user.is_oauth_login) === 1) {
+    if (user && user.password_hash) {
       throwError(
         "Email address is already registered.",
         "EMAIL_ALREADY_REGISTERED",
@@ -340,7 +340,7 @@ export const resendEmailOtp = async ({ email, purpose }) => {
       throwError("User not found.", "USER_NOT_FOUND");
     }
 
-    if (Number(user.is_email_verified) !== 1 || !user.password_hash) {
+    if (Number(user.is_email_verified) !== 1) {
       throwError(
         "Password reset is unavailable for this account.",
         "PASSWORD_RESET_UNAVAILABLE",
@@ -454,8 +454,8 @@ export const verifyOtp = async ({
     throwError("Account is pending deletion.", "ACCOUNT_DELETION_PENDING");
   }
 
-  if (Number(user.is_oauth_login) === 1) {
-    throwError("Invalid signup verification request.", "INVALID_OTP_PURPOSE");
+  if (Number(user.is_oauth_login) === 1 && user.password_hash) {
+    throwError("Invalid OTP purpose.", "INVALID_OTP_PURPOSE");
   }
 
   if (Number(user.is_email_verified) !== 1) {
@@ -514,11 +514,11 @@ export const resendOtp = async ({ phone, email, purpose, userId }) => {
 
     const existingPhoneUser = await findUserByPhone(phone);
 
-    if (
-      existingPhoneUser &&
-      Number(existingPhoneUser.id) !== Number(user.id)
-    ) {
-      throwError("Phone number is already registered.", "PHONE_ALREADY_REGISTERED");
+    if (existingPhoneUser && Number(existingPhoneUser.id) !== Number(user.id)) {
+      throwError(
+        "Phone number is already registered.",
+        "PHONE_ALREADY_REGISTERED",
+      );
     }
 
     if (user.phone === phone && Number(user.is_phone_verified) === 1) {
@@ -532,7 +532,10 @@ export const resendOtp = async ({ phone, email, purpose, userId }) => {
     }
   } else if (purpose === "signup") {
     if (!email) {
-      throwError("Email is required for signup phone verification.", "EMAIL_REQUIRED");
+      throwError(
+        "Email is required for signup phone verification.",
+        "EMAIL_REQUIRED",
+      );
     }
 
     user = await findUserByEmail(email.trim().toLowerCase());
@@ -545,8 +548,8 @@ export const resendOtp = async ({ phone, email, purpose, userId }) => {
       throwError("Account is pending deletion.", "ACCOUNT_DELETION_PENDING");
     }
 
-    if (Number(user.is_oauth_login) === 1) {
-      throwError("Invalid signup verification request.", "INVALID_OTP_PURPOSE");
+    if (Number(user.is_oauth_login) === 1 && user.password_hash) {
+      throwError("Invalid OTP purpose.", "INVALID_OTP_PURPOSE");
     }
 
     if (Number(user.is_email_verified) !== 1) {
@@ -554,7 +557,10 @@ export const resendOtp = async ({ phone, email, purpose, userId }) => {
     }
 
     if (user.password_hash) {
-      throwError("Email address is already registered.", "EMAIL_ALREADY_REGISTERED");
+      throwError(
+        "Email address is already registered.",
+        "EMAIL_ALREADY_REGISTERED",
+      );
     }
 
     if (Number(user.is_phone_verified) === 1) {
@@ -563,11 +569,11 @@ export const resendOtp = async ({ phone, email, purpose, userId }) => {
 
     const existingPhoneUser = await findUserByPhone(phone);
 
-    if (
-      existingPhoneUser &&
-      Number(existingPhoneUser.id) !== Number(user.id)
-    ) {
-      throwError("Phone number is already registered.", "PHONE_ALREADY_REGISTERED");
+    if (existingPhoneUser && Number(existingPhoneUser.id) !== Number(user.id)) {
+      throwError(
+        "Phone number is already registered.",
+        "PHONE_ALREADY_REGISTERED",
+      );
     }
 
     const otp = generateOtp();
@@ -587,7 +593,9 @@ export const resendOtp = async ({ phone, email, purpose, userId }) => {
     await deliverOtp(phone, otp);
 
     return {
-      ...(process.env.STATIC_OTP?.trim().toLowerCase() === "true" ? { otp } : {}),
+      ...(process.env.STATIC_OTP?.trim().toLowerCase() === "true"
+        ? { otp }
+        : {}),
     };
   } else {
     throwError("Invalid OTP purpose.", "INVALID_OTP_PURPOSE");
@@ -740,7 +748,7 @@ export const forgotPassword = async (email) => {
     throwError("Account is pending deletion.", "ACCOUNT_DELETION_PENDING");
   }
 
-  if (Number(user.is_email_verified) !== 1 || !user.password_hash) {
+  if (Number(user.is_email_verified) !== 1) {
     throwError(
       "Password reset is unavailable for this account.",
       "PASSWORD_RESET_UNAVAILABLE",
@@ -790,7 +798,7 @@ export const resetPassword = async ({ reset_token, password }) => {
 
   const passwordHash = await bcrypt.hash(password, 12);
 
-  await updatePassword(user.id, passwordHash);
+  await updatePassword(user.id, passwordHash, true);
   await clearRefreshToken(user.id);
 };
 
