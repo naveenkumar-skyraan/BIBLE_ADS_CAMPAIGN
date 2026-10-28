@@ -205,146 +205,14 @@ router.get("/transactions", middleware, getTransactionsController);
  */
 router.get("/transactions/:id", middleware, getTransactionController);
 
-/**
- * @swagger
- * /api/wallet/funds:
- *   post:
- *     summary: Allocate wallet funds to an ad
- *     tags:
- *       - Wallet
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: "#/components/schemas/AllocateFundRequest"
- *     responses:
- *       201:
- *         description: Fund allocated successfully
- *       400:
- *         description: Invalid allocation
- *       404:
- *         description: Business or ad not found
- */
 router.post("/funds", middleware, allocateFundController);
 
-/**
- * @swagger
- * /api/wallet/funds:
- *   get:
- *     summary: Get ad fund allocations
- *     tags:
- *       - Wallet
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *           minimum: 1
- *           default: 1
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           minimum: 1
- *           maximum: 100
- *           default: 20
- *       - in: query
- *         name: status
- *         schema:
- *           type: string
- *           enum:
- *             - active
- *             - completed
- *             - refund_pending
- *             - refunded
- *     responses:
- *       200:
- *         description: Ad funds fetched successfully
- */
 router.get("/funds", middleware, getFundsController);
 
-/**
- * @swagger
- * /api/wallet/funds/{id}:
- *   get:
- *     summary: Get ad fund details
- *     tags:
- *       - Wallet
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *     responses:
- *       200:
- *         description: Fund fetched successfully
- *       404:
- *         description: Fund not found
- */
 router.get("/funds/:id", middleware, getFundController);
 
-/**
- * @swagger
- * /api/wallet/funds/{id}/spend:
- *   post:
- *     summary: Update ad fund spending
- *     tags:
- *       - Wallet
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: "#/components/schemas/SpendFundRequest"
- *     responses:
- *       200:
- *         description: Fund spending updated successfully
- *       400:
- *         description: Invalid spending
- *       404:
- *         description: Fund not found
- */
 router.post("/funds/:id/spend", middleware, spendFundController);
 
-/**
- * @swagger
- * /api/wallet/funds/{id}/refund-request:
- *   post:
- *     summary: Request refund for unused ad fund
- *     tags:
- *       - Wallet
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *     responses:
- *       200:
- *         description: Refund request submitted successfully
- *       400:
- *         description: Invalid refund status
- *       404:
- *         description: Fund not found
- */
 router.post("/funds/:id/refund-request", middleware, requestRefundController);
 
 export default router;

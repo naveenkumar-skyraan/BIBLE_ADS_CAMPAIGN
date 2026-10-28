@@ -186,7 +186,7 @@ export const signup = async ({ name, email, phone, password }) => {
   }
 
   if (Number(user.is_phone_verified) !== 1) {
-    throwError("Please verify your phone number first.", "PHONE_NOT_VERIFIED");
+    throwError("Phone number already exists.Try another.", "PHONE_NOT_VERIFIED");
   }
 
   if (user.phone !== phone) {

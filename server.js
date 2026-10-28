@@ -56,6 +56,9 @@ const __dirname = path.dirname(__filename);
 
 app.use("/icons", express.static(path.join(__dirname, "public", "icons")));
 
+app.use("/uploads", express.static(path.join(__dirname, "public", "uploads")));
+
+
 app.use(
   express.json({
     verify: (req, res, buffer) => {

@@ -1,8 +1,8 @@
 import pool from "../configs/database/db.js";
 
 const getWalletByUserId = async (userId, connection = pool) => {
-    const [rows] = await connection.execute(
-        `
+  const [rows] = await connection.execute(
+    `
         SELECT
             id,
             user_id,
@@ -13,50 +13,50 @@ const getWalletByUserId = async (userId, connection = pool) => {
         WHERE user_id = ?
         LIMIT 1
         `,
-        [userId]
-    );
+    [userId],
+  );
 
-    return rows[0] || null;
+  return rows[0] || null;
 };
 
 const createWallet = async (userId, connection = pool) => {
-    const [result] = await connection.execute(
-        `
+  const [result] = await connection.execute(
+    `
         INSERT INTO wallets (
             user_id,
             balance
         )
         VALUES (?, 0.00)
         `,
-        [userId]
-    );
+    [userId],
+  );
 
-    return result.insertId;
+  return result.insertId;
 };
 
 const getOrCreateWallet = async (userId) => {
-    let wallet = await getWalletByUserId(userId);
+  let wallet = await getWalletByUserId(userId);
 
-    if (wallet) {
-        return wallet;
-    }
-
-    try {
-        await createWallet(userId);
-    } catch (error) {
-        if (error.code !== "ER_DUP_ENTRY") {
-            throw error;
-        }
-    }
-
-    wallet = await getWalletByUserId(userId);
-
+  if (wallet) {
     return wallet;
+  }
+
+  try {
+    await createWallet(userId);
+  } catch (error) {
+    if (error.code !== "ER_DUP_ENTRY") {
+      throw error;
+    }
+  }
+
+  wallet = await getWalletByUserId(userId);
+
+  return wallet;
 };
 
 const getUserForPayment = async (userId) => {
-    const [rows] = await pool.execute(
-        `
+  const [rows] = await pool.execute(
+    `
         SELECT
             id,
             name,
@@ -66,20 +66,15 @@ const getUserForPayment = async (userId) => {
         AND is_account_deleted = 0
         LIMIT 1
         `,
-        [userId]
-    );
+    [userId],
+  );
 
-    return rows[0] || null;
+  return rows[0] || null;
 };
 
-const createTopup = async (
-    userId,
-    walletId,
-    amount,
-    orderId
-) => {
-    const [result] = await pool.execute(
-        `
+const createTopup = async (userId, walletId, amount, orderId) => {
+  const [result] = await pool.execute(
+    `
         INSERT INTO wallet_topups (
             user_id,
             wallet_id,
@@ -89,54 +84,45 @@ const createTopup = async (
         )
         VALUES (?, ?, ?, ?, 'pending')
         `,
-        [
-            userId,
-            walletId,
-            amount,
-            orderId
-        ]
-    );
+    [userId, walletId, amount, orderId],
+  );
 
-    return result.insertId;
+  return result.insertId;
 };
 
 const updateTopupPaymentSession = async (
-    topupId,
-    cfOrderId,
-    paymentSessionId
+  topupId,
+  cfOrderId,
+  paymentSessionId,
 ) => {
-    await pool.execute(
-        `
+  await pool.execute(
+    `
         UPDATE wallet_topups
         SET
             cf_order_id = ?,
             payment_session_id = ?
         WHERE id = ?
         `,
-        [
-            cfOrderId,
-            paymentSessionId,
-            topupId
-        ]
-    );
+    [cfOrderId, paymentSessionId, topupId],
+  );
 };
 
 const getTopupByOrderId = async (
-    orderId,
-    userId = null,
-    connection = pool,
-    forUpdate = false
+  orderId,
+  userId = null,
+  connection = pool,
+  forUpdate = false,
 ) => {
-    const conditions = ["order_id = ?"];
-    const values = [orderId];
+  const conditions = ["order_id = ?"];
+  const values = [orderId];
 
-    if (userId !== null) {
-        conditions.push("user_id = ?");
-        values.push(userId);
-    }
+  if (userId !== null) {
+    conditions.push("user_id = ?");
+    values.push(userId);
+  }
 
-    const [rows] = await connection.execute(
-        `
+  const [rows] = await connection.execute(
+    `
         SELECT
             id,
             user_id,
@@ -158,15 +144,15 @@ const getTopupByOrderId = async (
         LIMIT 1
         ${forUpdate ? "FOR UPDATE" : ""}
         `,
-        values
-    );
+    values,
+  );
 
-    return rows[0] || null;
+  return rows[0] || null;
 };
 
 const getTopupById = async (topupId, userId) => {
-    const [rows] = await pool.execute(
-        `
+  const [rows] = await pool.execute(
+    `
         SELECT
             id,
             user_id,
@@ -188,22 +174,15 @@ const getTopupById = async (topupId, userId) => {
         AND user_id = ?
         LIMIT 1
         `,
-        [
-            topupId,
-            userId
-        ]
-    );
+    [topupId, userId],
+  );
 
-    return rows[0] || null;
+  return rows[0] || null;
 };
 
-const getTopupsByUserId = async (
-    userId,
-    offset,
-    limit
-) => {
-    const [rows] = await pool.execute(
-        `
+const getTopupsByUserId = async (userId, offset, limit) => {
+  const [rows] = await pool.execute(
+    `
         SELECT
             id,
             wallet_id,
@@ -222,40 +201,36 @@ const getTopupsByUserId = async (
         ORDER BY id DESC
         LIMIT ? OFFSET ?
         `,
-        [
-            userId,
-            limit,
-            offset
-        ]
-    );
+    [userId, limit, offset],
+  );
 
-    return rows;
+  return rows;
 };
 
 const getTopupCountByUserId = async (userId) => {
-    const [rows] = await pool.execute(
-        `
+  const [rows] = await pool.execute(
+    `
         SELECT COUNT(*) AS total
         FROM wallet_topups
         WHERE user_id = ?
         `,
-        [userId]
-    );
+    [userId],
+  );
 
-    return rows[0].total;
+  return rows[0].total;
 };
 
 const updateTopupStatus = async (
-    topupId,
-    status,
-    paymentId = null,
-    referenceId = null,
-    paymentMethod = null,
-    paymentReference = null,
-    paidAt = null
+  topupId,
+  status,
+  paymentId = null,
+  referenceId = null,
+  paymentMethod = null,
+  paymentReference = null,
+  paidAt = null,
 ) => {
-    await pool.execute(
-        `
+  await pool.execute(
+    `
         UPDATE wallet_topups
         SET
             payment_status = ?,
@@ -266,25 +241,21 @@ const updateTopupStatus = async (
             paid_at = COALESCE(?, paid_at)
         WHERE id = ?
         `,
-        [
-            status,
-            paymentId,
-            referenceId,
-            paymentMethod,
-            paymentReference,
-            paidAt,
-            topupId
-        ]
-    );
+    [
+      status,
+      paymentId,
+      referenceId,
+      paymentMethod,
+      paymentReference,
+      paidAt,
+      topupId,
+    ],
+  );
 };
 
-const getTransactionsByWalletId = async (
-    walletId,
-    offset,
-    limit
-) => {
-    const [rows] = await pool.execute(
-        `
+const getTransactionsByWalletId = async (walletId, offset, limit) => {
+  const [rows] = await pool.execute(
+    `
         SELECT
             id,
             wallet_id,
@@ -302,35 +273,28 @@ const getTransactionsByWalletId = async (
         ORDER BY id DESC
         LIMIT ? OFFSET ?
         `,
-        [
-            walletId,
-            limit,
-            offset
-        ]
-    );
+    [walletId, limit, offset],
+  );
 
-    return rows;
+  return rows;
 };
 
 const getTransactionCountByWalletId = async (walletId) => {
-    const [rows] = await pool.execute(
-        `
+  const [rows] = await pool.execute(
+    `
         SELECT COUNT(*) AS total
         FROM wallet_transactions
         WHERE wallet_id = ?
         `,
-        [walletId]
-    );
+    [walletId],
+  );
 
-    return rows[0].total;
+  return rows[0].total;
 };
 
-const getTransactionById = async (
-    transactionId,
-    walletId
-) => {
-    const [rows] = await pool.execute(
-        `
+const getTransactionById = async (transactionId, walletId) => {
+  const [rows] = await pool.execute(
+    `
         SELECT
             id,
             wallet_id,
@@ -348,24 +312,21 @@ const getTransactionById = async (
         AND wallet_id = ?
         LIMIT 1
         `,
-        [
-            transactionId,
-            walletId
-        ]
-    );
+    [transactionId, walletId],
+  );
 
-    return rows[0] || null;
+  return rows[0] || null;
 };
 
 const getAdById = async (
-    adId,
-    userId,
-    businessId,
-    connection = pool,
-    forUpdate = false
+  adId,
+  userId,
+  businessId,
+  connection = pool,
+  forUpdate = false,
 ) => {
-    const [rows] = await connection.execute(
-        `
+  const [rows] = await connection.execute(
+    `
         SELECT
             id,
             user_id,
@@ -378,23 +339,15 @@ const getAdById = async (
         LIMIT 1
         ${forUpdate ? "FOR UPDATE" : ""}
         `,
-        [
-            adId,
-            userId,
-            businessId
-        ]
-    );
+    [adId, userId, businessId],
+  );
 
-    return rows[0] || null;
+  return rows[0] || null;
 };
 
-const getBusinessById = async (
-    businessId,
-    userId,
-    connection = pool
-) => {
-    const [rows] = await connection.execute(
-        `
+const getBusinessById = async (businessId, userId, connection = pool) => {
+  const [rows] = await connection.execute(
+    `
         SELECT
             id,
             user_id
@@ -403,23 +356,20 @@ const getBusinessById = async (
         AND user_id = ?
         LIMIT 1
         `,
-        [
-            businessId,
-            userId
-        ]
-    );
+    [businessId, userId],
+  );
 
-    return rows[0] || null;
+  return rows[0] || null;
 };
 
 const getActiveFundByAdId = async (
-    adId,
-    userId,
-    connection = pool,
-    forUpdate = false
+  adId,
+  userId,
+  connection = pool,
+  forUpdate = false,
 ) => {
-    const [rows] = await connection.execute(
-        `
+  const [rows] = await connection.execute(
+    `
         SELECT
             id,
             user_id,
@@ -440,23 +390,20 @@ const getActiveFundByAdId = async (
         LIMIT 1
         ${forUpdate ? "FOR UPDATE" : ""}
         `,
-        [
-            adId,
-            userId
-        ]
-    );
+    [adId, userId],
+  );
 
-    return rows[0] || null;
+  return rows[0] || null;
 };
 
 const getFundById = async (
-    fundId,
-    userId,
-    connection = pool,
-    forUpdate = false
+  fundId,
+  userId,
+  connection = pool,
+  forUpdate = false,
 ) => {
-    const [rows] = await connection.execute(
-        `
+  const [rows] = await connection.execute(
+    `
         SELECT
             id,
             user_id,
@@ -475,34 +422,26 @@ const getFundById = async (
         LIMIT 1
         ${forUpdate ? "FOR UPDATE" : ""}
         `,
-        [
-            fundId,
-            userId
-        ]
-    );
+    [fundId, userId],
+  );
 
-    return rows[0] || null;
+  return rows[0] || null;
 };
 
-const getFundsByUserId = async (
-    userId,
-    offset,
-    limit,
-    status = null
-) => {
-    const conditions = ["user_id = ?"];
-    const values = [userId];
+const getFundsByUserId = async (userId, offset, limit, status = null) => {
+  const conditions = ["user_id = ?"];
+  const values = [userId];
 
-    if (status) {
-        conditions.push("status = ?");
-        values.push(status);
-    }
+  if (status) {
+    conditions.push("status = ?");
+    values.push(status);
+  }
 
-    values.push(limit);
-    values.push(offset);
+  values.push(limit);
+  values.push(offset);
 
-    const [rows] = await pool.execute(
-        `
+  const [rows] = await pool.execute(
+    `
         SELECT
             id,
             user_id,
@@ -520,110 +459,78 @@ const getFundsByUserId = async (
         ORDER BY id DESC
         LIMIT ? OFFSET ?
         `,
-        values
-    );
+    values,
+  );
 
-    return rows;
+  return rows;
 };
 
-const getFundCountByUserId = async (
-    userId,
-    status = null
-) => {
-    const conditions = ["user_id = ?"];
-    const values = [userId];
+const getFundCountByUserId = async (userId, status = null) => {
+  const conditions = ["user_id = ?"];
+  const values = [userId];
 
-    if (status) {
-        conditions.push("status = ?");
-        values.push(status);
-    }
+  if (status) {
+    conditions.push("status = ?");
+    values.push(status);
+  }
 
-    const [rows] = await pool.execute(
-        `
+  const [rows] = await pool.execute(
+    `
         SELECT COUNT(*) AS total
         FROM ad_fund_allocations
         WHERE ${conditions.join(" AND ")}
         `,
-        values
-    );
+    values,
+  );
 
-    return rows[0].total;
+  return rows[0].total;
 };
 
-const allocateFund = async (
-    userId,
-    businessId,
-    adId,
-    amount
-) => {
-    const connection = await pool.getConnection();
+const allocateFund = async (userId, businessId, adId, amount) => {
+  const connection = await pool.getConnection();
 
-    try {
-        await connection.beginTransaction();
+  try {
+    await connection.beginTransaction();
 
-        const business = await getBusinessById(
-            businessId,
-            userId,
-            connection
-        );
+    const business = await getBusinessById(businessId, userId, connection);
 
-        if (!business) {
-            const error = new Error(
-                "Business not found"
-            );
-            error.code = "BUSINESS_NOT_FOUND";
-            throw error;
-        }
+    if (!business) {
+      const error = new Error("Business not found");
+      error.code = "BUSINESS_NOT_FOUND";
+      throw error;
+    }
 
-        const ad = await getAdById(
-            adId,
-            userId,
-            businessId,
-            connection,
-            true
-        );
+    const ad = await getAdById(adId, userId, businessId, connection, true);
 
-        if (!ad) {
-            const error = new Error(
-                "Ad not found"
-            );
-            error.code = "AD_NOT_FOUND";
-            throw error;
-        }
+    if (!ad) {
+      const error = new Error("Ad not found");
+      error.code = "AD_NOT_FOUND";
+      throw error;
+    }
 
-        const existingFund = await getActiveFundByAdId(
-            adId,
-            userId,
-            connection,
-            true
-        );
+    const existingFund = await getActiveFundByAdId(
+      adId,
+      userId,
+      connection,
+      true,
+    );
 
-        if (
-            existingFund &&
-            existingFund.status !== "refunded"
-        ) {
-            const error = new Error(
-                "Fund already exists for this ad"
-            );
-            error.code = "FUND_ALREADY_EXISTS";
-            throw error;
-        }
+    if (existingFund && existingFund.status !== "refunded") {
+      const error = new Error("Fund already exists for this ad");
+      error.code = "FUND_ALREADY_EXISTS";
+      throw error;
+    }
 
-        const wallet = await getWalletByUserId(
-            userId,
-            connection
-        );
+    const wallet = await getWalletByUserId(userId, connection);
 
-        if (!wallet) {
-            const error = new Error(
-                "Wallet not found"
-            );
-            error.code = "WALLET_NOT_FOUND";
-            throw error;
-        }
+    if (!wallet) {
+      const error = new Error("Wallet not found");
+      error.code = "WALLET_NOT_FOUND";
+      throw error;
+    }
 
-        const [walletRows] = await connection.execute(
-            `
+    const [walletRows] = await connection.execute(
+      `
             SELECT
                 id,
                 balance
@@ -631,32 +538,23 @@ const allocateFund = async (
             WHERE id = ?
             FOR UPDATE
             `,
-            [wallet.id]
-        );
+      [wallet.id],
+    );
 
-        const lockedWallet = walletRows[0];
+    const lockedWallet = walletRows[0];
 
-        if (
-            !lockedWallet ||
-            Number(lockedWallet.balance) < Number(amount)
-        ) {
-            const error = new Error(
-                "Insufficient wallet balance"
-            );
-            error.code = "INSUFFICIENT_BALANCE";
-            throw error;
-        }
+    if (!lockedWallet || Number(lockedWallet.balance) < Number(amount)) {
+      const error = new Error("Insufficient wallet balance");
+      error.code = "INSUFFICIENT_BALANCE";
+      throw error;
+    }
 
-        const balanceBefore = Number(
-            lockedWallet.balance
-        );
+    const balanceBefore = Number(lockedWallet.balance);
 
-        const balanceAfter =
-            balanceBefore - Number(amount);
+    const balanceAfter = balanceBefore - Number(amount);
 
-        const [allocationResult] =
-            await connection.execute(
-                `
+    const [allocationResult] = await connection.execute(
+      `
                 INSERT INTO ad_fund_allocations (
                     user_id,
                     business_id,
@@ -669,29 +567,20 @@ const allocateFund = async (
                 )
                 VALUES (?, ?, ?, ?, 0.00, ?, 'active', 0.00)
                 `,
-                [
-                    userId,
-                    businessId,
-                    adId,
-                    amount,
-                    amount
-                ]
-            );
+      [userId, businessId, adId, amount, amount],
+    );
 
-        await connection.execute(
-            `
+    await connection.execute(
+      `
             UPDATE wallets
             SET balance = ?
             WHERE id = ?
             `,
-            [
-                balanceAfter,
-                lockedWallet.id
-            ]
-        );
+      [balanceAfter, lockedWallet.id],
+    );
 
-        await connection.execute(
-            `
+    await connection.execute(
+      `
             INSERT INTO wallet_transactions (
                 wallet_id,
                 transaction_type,
@@ -715,89 +604,64 @@ const allocateFund = async (
                 ?
             )
             `,
-            [
-                lockedWallet.id,
-                amount,
-                balanceBefore,
-                balanceAfter,
-                allocationResult.insertId,
-                `Fund allocated to ad ${adId}`
-            ]
-        );
+      [
+        lockedWallet.id,
+        amount,
+        balanceBefore,
+        balanceAfter,
+        allocationResult.insertId,
+        `Fund allocated to ad ${adId}`,
+      ],
+    );
 
-        await connection.commit();
+    await connection.commit();
 
-        return {
-            allocation_id: allocationResult.insertId,
-            wallet_balance: balanceAfter
-        };
-    } catch (error) {
-        await connection.rollback();
-        throw error;
-    } finally {
-        connection.release();
-    }
+    return {
+      allocation_id: allocationResult.insertId,
+      wallet_balance: balanceAfter,
+    };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 };
 
-const spendFund = async (
-    fundId,
-    userId,
-    amount
-) => {
-    const connection = await pool.getConnection();
+const spendFund = async (fundId, userId, amount) => {
+  const connection = await pool.getConnection();
 
-    try {
-        await connection.beginTransaction();
+  try {
+    await connection.beginTransaction();
 
-        const fund = await getFundById(
-            fundId,
-            userId,
-            connection,
-            true
-        );
+    const fund = await getFundById(fundId, userId, connection, true);
 
-        if (!fund) {
-            const error = new Error(
-                "Fund not found"
-            );
-            error.code = "FUND_NOT_FOUND";
-            throw error;
-        }
+    if (!fund) {
+      const error = new Error("Fund not found");
+      error.code = "FUND_NOT_FOUND";
+      throw error;
+    }
 
-        if (fund.status !== "active") {
-            const error = new Error(
-                "Fund is not active"
-            );
-            error.code = "FUND_NOT_ACTIVE";
-            throw error;
-        }
+    if (fund.status !== "active") {
+      const error = new Error("Fund is not active");
+      error.code = "FUND_NOT_ACTIVE";
+      throw error;
+    }
 
-        if (
-            Number(fund.remaining_amount) <
-            Number(amount)
-        ) {
-            const error = new Error(
-                "Insufficient fund balance"
-            );
-            error.code = "INSUFFICIENT_FUND_BALANCE";
-            throw error;
-        }
+    if (Number(fund.remaining_amount) < Number(amount)) {
+      const error = new Error("Insufficient fund balance");
+      error.code = "INSUFFICIENT_FUND_BALANCE";
+      throw error;
+    }
 
-        const spentAmount =
-            Number(fund.spent_amount) +
-            Number(amount);
+    const spentAmount = Number(fund.spent_amount) + Number(amount);
 
-        const remainingAmount =
-            Number(fund.remaining_amount) -
-            Number(amount);
+    const remainingAmount = Number(fund.remaining_amount) - Number(amount);
 
-        const status =
-            remainingAmount === 0
-                ? "completed"
-                : "active";
+    const status = remainingAmount === 0 ? "completed" : "active";
 
-        await connection.execute(
-            `
+    await connection.execute(
+      `
             UPDATE ad_fund_allocations
             SET
                 spent_amount = ?,
@@ -805,139 +669,92 @@ const spendFund = async (
                 status = ?
             WHERE id = ?
             `,
-            [
-                spentAmount,
-                remainingAmount,
-                status,
-                fundId
-            ]
-        );
+      [spentAmount, remainingAmount, status, fundId],
+    );
 
-        await connection.commit();
+    await connection.commit();
 
-        return await getFundById(
-            fundId,
-            userId
-        );
-    } catch (error) {
-        await connection.rollback();
-        throw error;
-    } finally {
-        connection.release();
-    }
+    return await getFundById(fundId, userId);
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 };
 
-const requestRefund = async (
-    fundId,
-    userId
-) => {
-    const connection = await pool.getConnection();
+const requestRefund = async (fundId, userId) => {
+  const connection = await pool.getConnection();
 
-    try {
-        await connection.beginTransaction();
+  try {
+    await connection.beginTransaction();
 
-        const fund = await getFundById(
-            fundId,
-            userId,
-            connection,
-            true
-        );
+    const fund = await getFundById(fundId, userId, connection, true);
 
-        if (!fund) {
-            const error = new Error(
-                "Fund not found"
-            );
-            error.code = "FUND_NOT_FOUND";
-            throw error;
-        }
+    if (!fund) {
+      const error = new Error("Fund not found");
+      error.code = "FUND_NOT_FOUND";
+      throw error;
+    }
 
-        if (
-            fund.status !== "active" &&
-            fund.status !== "completed"
-        ) {
-            const error = new Error(
-                "Fund cannot be moved to refund pending"
-            );
-            error.code = "INVALID_REFUND_STATUS";
-            throw error;
-        }
+    if (fund.status !== "active" && fund.status !== "completed") {
+      const error = new Error("Fund cannot be moved to refund pending");
+      error.code = "INVALID_REFUND_STATUS";
+      throw error;
+    }
 
-        const refundAmount =
-            Number(fund.remaining_amount);
+    const refundAmount = Number(fund.remaining_amount);
 
-        await connection.execute(
-            `
+    await connection.execute(
+      `
             UPDATE ad_fund_allocations
             SET
                 status = 'refund_pending',
                 refund_amount = ?
             WHERE id = ?
             `,
-            [
-                refundAmount,
-                fundId
-            ]
-        );
+      [refundAmount, fundId],
+    );
 
-        await connection.commit();
+    await connection.commit();
 
-        return await getFundById(
-            fundId,
-            userId
-        );
-    } catch (error) {
-        await connection.rollback();
-        throw error;
-    } finally {
-        connection.release();
-    }
+    return await getFundById(fundId, userId);
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 };
 
-const creditWalletForTopup = async (
-    orderId,
-    payment
-) => {
-    const connection = await pool.getConnection();
+const creditWalletForTopup = async (orderId, payment) => {
+  const connection = await pool.getConnection();
 
-    try {
-        await connection.beginTransaction();
+  try {
+    await connection.beginTransaction();
 
-        const topup = await getTopupByOrderId(
-            orderId,
-            null,
-            connection,
-            true
-        );
+    const topup = await getTopupByOrderId(orderId, null, connection, true);
 
-        if (!topup) {
-            const error = new Error(
-                "Top-up not found"
-            );
-            error.code = "TOPUP_NOT_FOUND";
-            throw error;
-        }
+    if (!topup) {
+      const error = new Error("Top-up not found");
+      error.code = "TOPUP_NOT_FOUND";
+      throw error;
+    }
 
-        if (
-            Number(payment.payment_amount) !==
-            Number(topup.amount)
-        ) {
-            const error = new Error(
-                "Payment amount does not match top-up amount"
-            );
-            error.code = "PAYMENT_AMOUNT_MISMATCH";
-            throw error;
-        }
+    if (Number(payment.payment_amount) !== Number(topup.amount)) {
+      const error = new Error("Payment amount does not match top-up amount");
+      error.code = "PAYMENT_AMOUNT_MISMATCH";
+      throw error;
+    }
 
-        if (topup.payment_status === "success") {
-            await connection.commit();
+    if (topup.payment_status === "success") {
+      await connection.commit();
 
-            return await getWalletByUserId(
-                topup.user_id
-            );
-        }
+      return await getWalletByUserId(topup.user_id);
+    }
 
-        const [walletRows] = await connection.execute(
-            `
+    const [walletRows] = await connection.execute(
+      `
             SELECT
                 id,
                 balance
@@ -945,54 +762,41 @@ const creditWalletForTopup = async (
             WHERE id = ?
             FOR UPDATE
             `,
-            [topup.wallet_id]
-        );
+      [topup.wallet_id],
+    );
 
-        const wallet = walletRows[0];
+    const wallet = walletRows[0];
 
-        if (!wallet) {
-            const error = new Error(
-                "Wallet not found"
-            );
-            error.code = "WALLET_NOT_FOUND";
-            throw error;
-        }
+    if (!wallet) {
+      const error = new Error("Wallet not found");
+      error.code = "WALLET_NOT_FOUND";
+      throw error;
+    }
 
-        const balanceBefore =
-            Number(wallet.balance);
+    const balanceBefore = Number(wallet.balance);
 
-        const amount =
-            Number(topup.amount);
+    const amount = Number(topup.amount);
 
-        const balanceAfter =
-            balanceBefore + amount;
+    const balanceAfter = balanceBefore + amount;
 
-        await connection.execute(
-            `
+    await connection.execute(
+      `
             UPDATE wallets
             SET balance = ?
             WHERE id = ?
             `,
-            [
-                balanceAfter,
-                wallet.id
-            ]
-        );
+      [balanceAfter, wallet.id],
+    );
 
-        const paymentId =
-            payment.cf_payment_id || null;
+    const paymentId = payment.cf_payment_id || null;
 
-        const referenceId =
-            payment.bank_reference ||
-            payment.cf_reference_id ||
-            null;
+    const referenceId =
+      payment.bank_reference || payment.cf_reference_id || null;
 
-        const paymentMethod =
-            payment.payment_group ||
-            null;
+    const paymentMethod = payment.payment_group || null;
 
-        await connection.execute(
-            `
+    await connection.execute(
+      `
             UPDATE wallet_topups
             SET
                 payment_status = 'success',
@@ -1003,83 +807,78 @@ const creditWalletForTopup = async (
                 paid_at = NOW()
             WHERE id = ?
             `,
-            [
-                paymentId,
-                referenceId,
-                paymentMethod,
-                referenceId,
-                topup.id
-            ]
-        );
+      [paymentId, referenceId, paymentMethod, referenceId, topup.id],
+    );
 
-        await connection.execute(
-            `
-            INSERT INTO wallet_transactions (
-                wallet_id,
-                transaction_type,
-                transaction_direction,
-                amount,
-                balance_before,
-                balance_after,
-                reference_id,
-                reference_type,
-                description
-            )
-            VALUES (
-                ?,
-                'top_up',
-                'credit',
-                ?,
-                ?,
-                ?,
-                ?,
-                'wallet_topup',
-                ?
-            )
-            `,
-            [
-                wallet.id,
-                amount,
-                balanceBefore,
-                balanceAfter,
-                topup.id,
-                `Wallet top-up via Cashfree order ${orderId}`
-            ]
-        );
+    await connection.execute(
+      `
+    INSERT INTO wallet_transactions (
+        wallet_id,
+        user_id,
+        transaction_type,
+        transaction_direction,
+        amount,
+        balance_before,
+        balance_after,
+        reference_id,
+        reference_type,
+        description
+    )
+    VALUES (
+        ?,
+        ?,
+        'top_up',
+        'credit',
+        ?,
+        ?,
+        ?,
+        ?,
+        'wallet_topup',
+        ?
+    )
+    `,
+      [
+        wallet.id,
+        topup.user_id,
+        amount,
+        balanceBefore,
+        balanceAfter,
+        topup.id,
+        `Wallet top-up via Cashfree order ${orderId}`,
+      ],
+    );
 
-        await connection.commit();
+    await connection.commit();
 
-        return await getWalletByUserId(
-            topup.user_id
-        );
-    } catch (error) {
-        await connection.rollback();
-        throw error;
-    } finally {
-        connection.release();
-    }
+    return await getWalletByUserId(topup.user_id);
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 };
 
 export {
-    getWalletByUserId,
-    createWallet,
-    getOrCreateWallet,
-    getUserForPayment,
-    createTopup,
-    updateTopupPaymentSession,
-    getTopupByOrderId,
-    getTopupById,
-    getTopupsByUserId,
-    getTopupCountByUserId,
-    updateTopupStatus,
-    getTransactionsByWalletId,
-    getTransactionCountByWalletId,
-    getTransactionById,
-    allocateFund,
-    getFundById,
-    getFundsByUserId,
-    getFundCountByUserId,
-    spendFund,
-    requestRefund,
-    creditWalletForTopup
+  getWalletByUserId,
+  createWallet,
+  getOrCreateWallet,
+  getUserForPayment,
+  createTopup,
+  updateTopupPaymentSession,
+  getTopupByOrderId,
+  getTopupById,
+  getTopupsByUserId,
+  getTopupCountByUserId,
+  updateTopupStatus,
+  getTransactionsByWalletId,
+  getTransactionCountByWalletId,
+  getTransactionById,
+  allocateFund,
+  getFundById,
+  getFundsByUserId,
+  getFundCountByUserId,
+  spendFund,
+  requestRefund,
+  creditWalletForTopup,
 };
