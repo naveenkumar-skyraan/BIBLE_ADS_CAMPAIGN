@@ -402,13 +402,6 @@ export const verifyOtp = async ({
       throwError("Account is pending deletion.", "ACCOUNT_DELETION_PENDING");
     }
 
-    if (Number(user.is_oauth_login) !== 1) {
-      throwError(
-        "Only social login users can add a phone number.",
-        "PROFILE_PHONE_NOT_ALLOWED",
-      );
-    }
-
     if (!user.phone || user.phone !== phone) {
       throwError(
         "Phone number does not match the pending verification.",
@@ -503,13 +496,6 @@ export const resendOtp = async ({ phone, email, purpose, userId }) => {
 
     if (Number(user.is_account_deleted) === 1) {
       throwError("Account is pending deletion.", "ACCOUNT_DELETION_PENDING");
-    }
-
-    if (Number(user.is_oauth_login) !== 1) {
-      throwError(
-        "Only social login users can add a phone number.",
-        "PROFILE_PHONE_NOT_ALLOWED",
-      );
     }
 
     const existingPhoneUser = await findUserByPhone(phone);

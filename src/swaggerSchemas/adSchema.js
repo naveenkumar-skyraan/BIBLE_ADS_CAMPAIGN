@@ -76,6 +76,108 @@ const adSchema = {
     },
   },
 
+  AdResponse: {
+    type: "object",
+    properties: {
+      id: {
+        type: "integer",
+        example: 15,
+      },
+      campaign_id: {
+        type: "integer",
+        nullable: true,
+        example: null,
+      },
+      business_id: {
+        type: "integer",
+        example: 1,
+      },
+      objective_id: {
+        type: "integer",
+        example: 1,
+      },
+      ad_type_id: {
+        type: "integer",
+        example: 1,
+      },
+      title: {
+        type: "string",
+        example: "Youth meeting",
+      },
+      description: {
+        type: "string",
+        example: "Join us for an exciting youth meeting.",
+      },
+      action_button_type_id: {
+        type: "integer",
+        nullable: true,
+        example: 1,
+      },
+      destination_link: {
+        type: "string",
+        nullable: true,
+        example: "https://example.com/reading",
+      },
+      platform: {
+        type: "string",
+        enum: ["android", "ios", "both"],
+        example: "both",
+      },
+      status: {
+        type: "string",
+        example: "draft",
+      },
+      media_id: {
+        type: "integer",
+        nullable: true,
+        example: 12,
+      },
+      media_type: {
+        type: "string",
+        nullable: true,
+        enum: ["image", "video"],
+        example: "image",
+      },
+      file_url: {
+        type: "string",
+        nullable: true,
+        example: "/uploads/ads/example.jpg",
+      },
+      file_name: {
+        type: "string",
+        nullable: true,
+        example: "example.jpg",
+      },
+      mime_type: {
+        type: "string",
+        nullable: true,
+        example: "image/jpeg",
+      },
+      file_size: {
+        type: "integer",
+        nullable: true,
+        example: 245678,
+      },
+    },
+  },
+
+  AdSingleResponse: {
+    type: "object",
+    properties: {
+      success: {
+        type: "boolean",
+        example: true,
+      },
+      message: {
+        type: "string",
+        example: "Draft ad created successfully.",
+      },
+      data: {
+        $ref: "#/components/schemas/AdResponse",
+      },
+    },
+  },
+
   AdActionButtonResponse: {
     type: "object",
     properties: {

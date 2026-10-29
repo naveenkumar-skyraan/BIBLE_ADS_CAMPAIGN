@@ -17,8 +17,14 @@ import adminAdActionButtonRoutes from "./src/routes/adminAdActionButtonRoutes.js
 import userRoutes from "./src/routes/userRoutes.js";
 import socialAuthRoutes from "./src/routes/socialAuthRoutes.js";
 import enquiryRoutes from "./src/routes/enquiryRoutes.js";
+
+
 import adObjectiveRoutes from "./src/routes/adObjectiveRoutes.js";
 import adTypeRoutes from "./src/routes/adTypeRoutes.js";
+import adRoutes from "./src/routes/adRoutes.js";
+import adLocationRoutes from "./src/routes/adLocationRoutes.js";
+import adLocationTargetRoutes from "./src/routes/adLocationTargetRoutes.js";
+
 import adActionButtonRoutes from "./src/routes/adActionButtonRoutes.js";
 import walletRoutes from "./src/routes/walletRoutes.js";
 import profileRoutes from "./src/routes/profileRoutes.js";
@@ -93,6 +99,10 @@ app.use("/api/admin/ad-action-buttons", adminAdActionButtonRoutes);
 app.use("/api/ad-objectives", adObjectiveRoutes);
 app.use("/api/ad-types", adTypeRoutes);
 app.use("/api/ad-action-buttons", adActionButtonRoutes);
+app.use("/api/ads/locations", adLocationRoutes);
+app.use("/api/ads", adLocationTargetRoutes);
+app.use("/api/ads", adRoutes);
+
 
 app.use("/api/auth", userRoutes);
 app.use("/api/auth", socialAuthRoutes);

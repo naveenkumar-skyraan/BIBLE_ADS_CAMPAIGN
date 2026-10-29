@@ -71,7 +71,7 @@ export const updateProfileController = async (req, res) => {
     const statusCodes = {
       USER_NOT_FOUND: 404,
       PHONE_ALREADY_REGISTERED: 409,
-      PROFILE_PHONE_NOT_ALLOWED: 403,
+      PROFILE_PHONE_NOT_VERIFIED: 403,
       PHONE_VERIFICATION_REQUIRED: 400,
       INVALID_PHONE_VERIFICATION_TOKEN: 400,
     };

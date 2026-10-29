@@ -45,8 +45,8 @@ const profileService = {
     if (phoneChanged) {
       if (Number(user.is_oauth_login) !== 1) {
         throw createError(
-          "PROFILE_PHONE_NOT_ALLOWED",
-          "Phone number cannot be changed for phone-login accounts.",
+          "PROFILE_PHONE_NOT_VERIFIED",
+          "Phone number is not verified.please verify phone number.",
         );
       }
 

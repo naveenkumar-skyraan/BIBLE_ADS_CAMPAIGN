@@ -162,7 +162,6 @@ export const setProfilePhoneForOtp = async (userId, phone) => {
        is_phone_verified = 0,
        updated_at = CURRENT_TIMESTAMP
      WHERE id = ?
-       AND is_oauth_login = 1
        AND is_account_deleted = 0`,
     [phone, userId],
   );

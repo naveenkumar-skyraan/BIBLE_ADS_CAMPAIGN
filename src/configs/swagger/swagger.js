@@ -82,6 +82,9 @@ const options = {
         GetAdObjectivesResponse: adSchema.GetAdObjectivesResponse,
         GetAdActionButtonsResponse: adSchema.GetAdActionButtonsResponse,
 
+        AdResponse: adSchema.AdResponse,
+        AdSingleResponse: adSchema.AdSingleResponse,
+
         UpdateProfileRequest: profileSchema.UpdateProfileRequest,
         ProfileResponse: profileSchema.ProfileResponse,
 
