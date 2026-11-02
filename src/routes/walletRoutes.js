@@ -1,3 +1,4 @@
+
 import express from "express";
 
 import {
@@ -6,29 +7,60 @@ import {
   verifyTopupController,
   cashfreeWebhookController,
   getTransactionsController,
-  getTransactionController,
-  getTopupsController,
-  getTopupController,
-  allocateFundController,
-  getFundsController,
-  getFundController,
-  spendFundController,
-  requestRefundController,
+  getTransactionController
 } from "../controllers/walletController.js";
 
 import { middleware } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
+/**
+ * @swagger
+ * tags:
+ *   name: Wallet
+ *   description: Wallet management and transaction history APIs
+ */
+
+/**
+ * @swagger
+ * /api/wallet/webhook:
+ *   post:
+ *     summary: Cashfree payment webhook
+ *     tags: [Wallet]
+ *     description: Receives Cashfree payment status updates and updates the wallet accordingly.
+ *     parameters:
+ *       - in: header
+ *         name: x-webhook-signature
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: header
+ *         name: x-webhook-timestamp
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: Webhook processed successfully
+ *       400:
+ *         description: Invalid webhook payload or signature
+ *       500:
+ *         description: Webhook processing failed
+ */
 router.post("/webhook", cashfreeWebhookController);
 
 /**
  * @swagger
  * /api/wallet:
- *   get:
- *     summary: Get user wallet
- *     tags:
- *       - Wallet
+ *   post:
+ *     summary: Get wallet details
+ *     tags: [Wallet]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -37,21 +69,20 @@ router.post("/webhook", cashfreeWebhookController);
  *         content:
  *           application/json:
  *             schema:
- *               $ref: "#/components/schemas/GetWalletResponse"
+ *               $ref: '#/components/schemas/GetWalletResponse'
  *       401:
  *         description: Unauthorized
  *       500:
- *         description: Internal server error
+ *         description: Failed to fetch wallet
  */
-router.get("/", middleware, getWalletController);
+router.post("/", middleware, getWalletController);
 
 /**
  * @swagger
  * /api/wallet/topups:
  *   post:
  *     summary: Create wallet top-up order
- *     tags:
- *       - Wallet
+ *     tags: [Wallet]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -59,16 +90,20 @@ router.get("/", middleware, getWalletController);
  *       content:
  *         application/json:
  *           schema:
- *             $ref: "#/components/schemas/CreateTopupRequest"
+ *             $ref: '#/components/schemas/CreateTopupRequest'
  *     responses:
  *       201:
  *         description: Top-up order created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/CreateTopupResponse'
  *       400:
- *         description: Validation failed
+ *         description: Invalid amount or request data
  *       401:
  *         description: Unauthorized
- *       502:
- *         description: Cashfree API error
+ *       500:
+ *         description: Failed to create top-up order
  */
 router.post("/topups", middleware, createTopupController);
 
@@ -77,8 +112,7 @@ router.post("/topups", middleware, createTopupController);
  * /api/wallet/topups/verify:
  *   post:
  *     summary: Verify wallet top-up payment
- *     tags:
- *       - Wallet
+ *     tags: [Wallet]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -86,133 +120,86 @@ router.post("/topups", middleware, createTopupController);
  *       content:
  *         application/json:
  *           schema:
- *             $ref: "#/components/schemas/VerifyTopupRequest"
+ *             $ref: '#/components/schemas/VerifyTopupRequest'
  *     responses:
  *       200:
- *         description: Payment verified successfully
+ *         description: Payment verification completed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/VerifyTopupResponse'
  *       400:
- *         description: Validation failed
+ *         description: Invalid order ID or payment verification failed
  *       401:
  *         description: Unauthorized
+ *       404:
+ *         description: Top-up order not found
+ *       500:
+ *         description: Payment verification error
  */
 router.post("/topups/verify", middleware, verifyTopupController);
 
 /**
  * @swagger
- * /api/wallet/topups:
- *   get:
- *     summary: Get wallet top-up history
- *     tags:
- *       - Wallet
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *           minimum: 1
- *           default: 1
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           minimum: 1
- *           maximum: 100
- *           default: 20
- *     responses:
- *       200:
- *         description: Top-ups fetched successfully
- *       401:
- *         description: Unauthorized
- */
-router.get("/topups", middleware, getTopupsController);
-
-/**
- * @swagger
- * /api/wallet/topups/{id}:
- *   get:
- *     summary: Get wallet top-up details
- *     tags:
- *       - Wallet
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *     responses:
- *       200:
- *         description: Top-up fetched successfully
- *       404:
- *         description: Top-up not found
- */
-router.get("/topups/:id", middleware, getTopupController);
-
-/**
- * @swagger
  * /api/wallet/transactions:
- *   get:
+ *   post:
  *     summary: Get wallet transaction history
- *     tags:
- *       - Wallet
+ *     tags: [Wallet]
+ *     description: Returns paginated wallet transactions with transaction type and date filters. Successful top-ups are retrieved from wallet transactions, while pending and failed top-ups are retrieved from top-up records.
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *           minimum: 1
- *           default: 1
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           minimum: 1
- *           maximum: 100
- *           default: 20
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/GetWalletTransactionsRequest'
  *     responses:
  *       200:
  *         description: Transactions fetched successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/GetWalletTransactionsResponse'
+ *       400:
+ *         description: Invalid filters or cursor
  *       401:
  *         description: Unauthorized
+ *       500:
+ *         description: Failed to fetch transactions
  */
-router.get("/transactions", middleware, getTransactionsController);
+router.post("/transactions", middleware, getTransactionsController);
 
 /**
  * @swagger
- * /api/wallet/transactions/{id}:
- *   get:
+ * /api/wallet/transactions/details:
+ *   post:
  *     summary: Get wallet transaction details
- *     tags:
- *       - Wallet
+ *     tags: [Wallet]
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/GetWalletTransactionRequest'
  *     responses:
  *       200:
- *         description: Transaction fetched successfully
+ *         description: Transaction details fetched successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/GetWalletTransactionResponse'
+ *       400:
+ *         description: Invalid transaction details request
+ *       401:
+ *         description: Unauthorized
  *       404:
  *         description: Transaction not found
+ *       500:
+ *         description: Failed to fetch transaction details
  */
-router.get("/transactions/:id", middleware, getTransactionController);
-
-router.post("/funds", middleware, allocateFundController);
-
-router.get("/funds", middleware, getFundsController);
-
-router.get("/funds/:id", middleware, getFundController);
-
-router.post("/funds/:id/spend", middleware, spendFundController);
-
-router.post("/funds/:id/refund-request", middleware, requestRefundController);
+router.post("/transactions/details", middleware, getTransactionController);
 
 export default router;

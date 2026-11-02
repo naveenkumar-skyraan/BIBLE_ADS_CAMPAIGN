@@ -1,126 +1,54 @@
 import Joi from "joi";
 
 const walletValidator = {
-    getWallet: Joi.object({}).unknown(false),
+  getWallet: Joi.object({}),
 
-    createTopup: Joi.object({
-        amount: Joi.number()
-            .positive()
-            .precision(2)
-            .required()
-    }),
+  createTopup: Joi.object({
+    amount: Joi.number().min(1).precision(2).required(),
+  }),
 
-    verifyTopup: Joi.object({
-        order_id: Joi.string()
-            .trim()
-            .max(100)
-            .required()
-    }),
+  verifyTopup: Joi.object({
+    order_id: Joi.string().trim().max(100).required(),
+  }),
 
-    getTransactions: Joi.object({
-        page: Joi.number()
-            .integer()
-            .min(1)
-            .default(1),
+  getTransactions: Joi.object({
+    type: Joi.string()
+      .valid("all", "added", "ads_spend", "pending", "failed")
+      .default("all"),
 
-        limit: Joi.number()
-            .integer()
-            .min(1)
-            .max(100)
-            .default(20)
-    }),
+    date_filter: Joi.string()
+      .valid(
+        "all",
+        "today",
+        "yesterday",
+        "last_week",
+        "last_month",
+        "last_year",
+      )
+      .default("all"),
 
-    getTransaction: Joi.object({
-        id: Joi.number()
-            .integer()
-            .positive()
-            .required()
-    }),
+    cursor: Joi.object({
+      transaction_date: Joi.date().iso().required(),
 
-    getTopups: Joi.object({
-        page: Joi.number()
-            .integer()
-            .min(1)
-            .default(1),
+      source_type: Joi.string()
+        .valid("wallet_transaction", "wallet_topup")
+        .required(),
 
-        limit: Joi.number()
-            .integer()
-            .min(1)
-            .max(100)
-            .default(20)
-    }),
-
-    getTopup: Joi.object({
-        id: Joi.number()
-            .integer()
-            .positive()
-            .required()
-    }),
-
-    allocateFund: Joi.object({
-        business_id: Joi.number()
-            .integer()
-            .positive()
-            .required(),
-
-        ad_id: Joi.number()
-            .integer()
-            .positive()
-            .required(),
-
-        amount: Joi.number()
-            .positive()
-            .precision(2)
-            .required()
-    }),
-
-    getFunds: Joi.object({
-        page: Joi.number()
-            .integer()
-            .min(1)
-            .default(1),
-
-        limit: Joi.number()
-            .integer()
-            .min(1)
-            .max(100)
-            .default(20),
-
-        status: Joi.string()
-            .valid(
-                "active",
-                "completed",
-                "refund_pending",
-                "refunded"
-            )
-            .optional()
-    }),
-
-    getFund: Joi.object({
-        id: Joi.number()
-            .integer()
-            .positive()
-            .required()
-    }),
-
-    spendFund: Joi.object({
-        id: Joi.number()
-            .integer()
-            .positive()
-            .required(),
-
-        amount: Joi.number()
-            .positive()
-            .precision(2)
-            .required()
-    }),
-
-    requestRefund: Joi.object({
-        id: Joi.number()
-            .integer()
-            .positive()
-            .required()
+      source_id: Joi.number().integer().positive().required(),
     })
+      .allow(null)
+      .default(null),
+
+    limit: Joi.number().integer().valid(10).default(10),
+  }),
+
+  getTransaction: Joi.object({
+    transaction_id: Joi.number().integer().positive().required(),
+
+    source_type: Joi.string()
+      .valid("wallet_transaction", "wallet_topup")
+      .required(),
+  }),
 };
 
 export default walletValidator;

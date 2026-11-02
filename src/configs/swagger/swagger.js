@@ -66,11 +66,22 @@ const options = {
         PlaceDetailsResponse: businessDetailSchema.PlaceDetailsResponse,
         ReverseGeocodeResponse: businessDetailSchema.ReverseGeocodeResponse,
         LocationAddress: businessDetailSchema.LocationAddress,
-
         WalletResponse: walletSchema.WalletResponse,
         GetWalletResponse: walletSchema.GetWalletResponse,
+
         CreateTopupRequest: walletSchema.CreateTopupRequest,
+        CreateTopupResponse: walletSchema.WalletTopupResponse,
+
         VerifyTopupRequest: walletSchema.VerifyTopupRequest,
+        VerifyTopupResponse: walletSchema.VerifyTopupResponse,
+
+        GetWalletTransactionsRequest: walletSchema.GetWalletTransactionsRequest,
+        GetWalletTransactionsResponse:
+          walletSchema.GetWalletTransactionsResponse,
+
+        GetWalletTransactionRequest: walletSchema.GetWalletTransactionRequest,
+        GetWalletTransactionResponse: walletSchema.GetWalletTransactionResponse,
+
         AllocateFundRequest: walletSchema.AllocateFundRequest,
         SpendFundRequest: walletSchema.SpendFundRequest,
         AdFundResponse: walletSchema.AdFundResponse,

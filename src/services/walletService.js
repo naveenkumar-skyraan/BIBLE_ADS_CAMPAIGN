@@ -7,19 +7,10 @@ import {
   updateTopupPaymentSession,
   getTopupByOrderId,
   getTopupById,
-  getTopupsByUserId,
-  getTopupCountByUserId,
   updateTopupStatus,
   getWalletByUserId,
-  getTransactionsByWalletId,
-  getTransactionCountByWalletId,
-  getTransactionById,
-  allocateFund,
-  getFundById,
-  getFundsByUserId,
-  getFundCountByUserId,
-  spendFund,
-  requestRefund,
+  getTransactionList,
+  getTransactionDetails,
   creditWalletForTopup,
 } from "../models/walletModel.js";
 
@@ -38,6 +29,33 @@ const getCashfreeHeaders = () => ({
   "Content-Type": "application/json",
 });
 
+const getPaymentStatusReason = (payment, status) => {
+  const errorDetails =
+    payment?.error_details && typeof payment.error_details === "object"
+      ? payment.error_details
+      : {};
+
+  const message =
+    errorDetails.error_description ||
+    errorDetails.error_reason ||
+    payment?.payment_message ||
+    payment?.message;
+
+  if (message) {
+    return String(message).trim().slice(0, 500);
+  }
+
+  if (status === "USER_DROPPED") {
+    return "Payment was cancelled before completion. No amount was added to your wallet.";
+  }
+
+  if (status === "FAILED") {
+    return "Payment could not be completed. No amount was added to your wallet.";
+  }
+
+  return "Your payment is being processed. Your wallet has not been credited yet.";
+};
+
 const cashfreeRequest = async (path, options = {}) => {
   if (!process.env.CASHFREE_CLIENT_ID || !process.env.CASHFREE_CLIENT_SECRET) {
     const error = new Error("Cashfree credentials are not configured");
@@ -53,16 +71,14 @@ const cashfreeRequest = async (path, options = {}) => {
     },
   });
 
-  const text = await response.text();
+  const responseText = await response.text();
 
   let data;
 
   try {
-    data = text ? JSON.parse(text) : {};
+    data = responseText ? JSON.parse(responseText) : {};
   } catch {
-    data = {
-      message: text,
-    };
+    data = { message: responseText };
   }
 
   if (!response.ok) {
@@ -92,7 +108,6 @@ const getWallet = async (userId) => {
 
 const createTopupOrder = async (userId, amount) => {
   const wallet = await getOrCreateWallet(userId);
-
   const user = await getUserForPayment(userId);
 
   if (!user) {
@@ -111,56 +126,91 @@ const createTopupOrder = async (userId, amount) => {
 
   const topupId = await createTopup(userId, wallet.id, amount, orderId);
 
-  try {
-    const payload = {
-      order_amount: Number(Number(amount).toFixed(2)),
-      order_currency: "INR",
-      order_id: orderId,
-      customer_details: {
-        customer_id: String(userId),
-        customer_name: user.name,
-        customer_phone: user.phone,
-      },
+  const payload = {
+    order_amount: Number(Number(amount).toFixed(2)),
+    order_currency: "INR",
+    order_id: orderId,
+    customer_details: {
+      customer_id: String(userId),
+      customer_name: user.name,
+      customer_phone: user.phone,
+    },
+  };
+
+  if (process.env.CASHFREE_RETURN_URL) {
+    payload.order_meta = {
+      return_url: `${process.env.CASHFREE_RETURN_URL}?order_id={order_id}`,
     };
+  }
 
-    if (process.env.CASHFREE_RETURN_URL) {
-      payload.order_meta = {
-        return_url: `${process.env.CASHFREE_RETURN_URL}?order_id={order_id}`,
-      };
-    }
+  if (process.env.CASHFREE_NOTIFY_URL) {
+    payload.order_meta = {
+      ...(payload.order_meta || {}),
+      notify_url: process.env.CASHFREE_NOTIFY_URL,
+    };
+  }
 
-    if (process.env.CASHFREE_NOTIFY_URL) {
-      payload.order_meta = {
-        ...(payload.order_meta || {}),
-        notify_url: process.env.CASHFREE_NOTIFY_URL,
-      };
-    }
+  let response;
 
-    const response = await cashfreeRequest("/orders", {
+  try {
+    response = await cashfreeRequest("/orders", {
       method: "POST",
       body: JSON.stringify(payload),
     });
-
-    await updateTopupPaymentSession(
-      topupId,
-      response.cf_order_id || null,
-      response.payment_session_id,
-    );
-
-    return {
-      topup_id: topupId,
-      order_id: orderId,
-      cf_order_id: response.cf_order_id || null,
-      payment_session_id: response.payment_session_id,
-      amount: Number(amount),
-      currency: "INR",
-      payment_status: "pending",
-    };
   } catch (error) {
-    await updateTopupStatus(topupId, "failed");
+    const definitelyRejected =
+      error.code === "CASHFREE_CONFIG_ERROR" ||
+      (error.code === "CASHFREE_API_ERROR" &&
+        [400, 401, 403, 404, 422].includes(error.status));
+
+    if (definitelyRejected) {
+      const reason = String(
+        error.details?.message ||
+          error.message ||
+          "Payment order creation was rejected.",
+      ).slice(0, 500);
+
+      await updateTopupStatus(
+        topupId,
+        "failed",
+        null,
+        null,
+        null,
+        null,
+        null,
+        reason,
+      );
+    } else {
+      await updateTopupStatus(
+        topupId,
+        "pending",
+        null,
+        null,
+        null,
+        null,
+        null,
+        "Payment order creation could not be confirmed. Please verify the payment status before retrying.",
+      );
+    }
 
     throw error;
   }
+
+  await updateTopupPaymentSession(
+    topupId,
+    response.cf_order_id || null,
+    response.payment_session_id,
+  );
+
+  return {
+    topup_id: topupId,
+    order_id: orderId,
+    cf_order_id: response.cf_order_id || null,
+    payment_session_id: response.payment_session_id,
+    amount: Number(amount),
+    currency: "INR",
+    payment_status: "pending",
+  };
 };
 
 const verifyCashfreePayment = async (userId, orderId) => {
@@ -177,19 +227,20 @@ const verifyCashfreePayment = async (userId, orderId) => {
       topup,
       wallet: await getWalletByUserId(userId),
       payment_status: "success",
+      status_reason: null,
     };
   }
 
   const payments = await cashfreeRequest(
     `/orders/${encodeURIComponent(orderId)}/payments`,
-    {
-      method: "GET",
-    },
+    { method: "GET" },
   );
 
-  const successfulPayment = Array.isArray(payments)
-    ? payments.find((payment) => payment.payment_status === "SUCCESS")
-    : null;
+  const paymentRecords = Array.isArray(payments) ? payments : [];
+
+  const successfulPayment = paymentRecords.find(
+    (payment) => String(payment.payment_status).toUpperCase() === "SUCCESS",
+  );
 
   if (successfulPayment) {
     const wallet = await creditWalletForTopup(orderId, successfulPayment);
@@ -198,27 +249,104 @@ const verifyCashfreePayment = async (userId, orderId) => {
       topup: await getTopupById(topup.id, userId),
       wallet,
       payment_status: "success",
+      status_reason: null,
     };
   }
 
-  const pendingPayment = Array.isArray(payments)
-    ? payments.find((payment) => payment.payment_status === "PENDING")
-    : null;
+  const pendingPayment = paymentRecords.find((payment) =>
+    ["PENDING", "NOT_ATTEMPTED"].includes(
+      String(payment.payment_status).toUpperCase(),
+    ),
+  );
 
   if (pendingPayment) {
+    const status = String(pendingPayment.payment_status).toUpperCase();
+
+    const reason = getPaymentStatusReason(pendingPayment, status);
+
+    await updateTopupStatus(
+      topup.id,
+      "pending",
+      pendingPayment.cf_payment_id || null,
+      pendingPayment.bank_reference || pendingPayment.cf_reference_id || null,
+      pendingPayment.payment_group || null,
+      pendingPayment.bank_reference || null,
+      null,
+      reason,
+    );
+
+    const updatedTopup = await getTopupById(topup.id, userId);
+
     return {
-      topup: await getTopupById(topup.id, userId),
+      topup: updatedTopup,
       wallet: await getWalletByUserId(userId),
-      payment_status: "pending",
+      payment_status: updatedTopup.payment_status,
+      status_reason: updatedTopup.status_reason,
     };
   }
 
-  await updateTopupStatus(topup.id, "failed");
+  const failedPayment = [...paymentRecords]
+    .reverse()
+    .find((payment) =>
+      ["FAILED", "USER_DROPPED"].includes(
+        String(payment.payment_status).toUpperCase(),
+      ),
+    );
+
+  if (failedPayment) {
+    const status = String(failedPayment.payment_status).toUpperCase();
+
+    const reason = getPaymentStatusReason(failedPayment, status);
+
+    await updateTopupStatus(
+      topup.id,
+      "failed",
+      failedPayment.cf_payment_id || null,
+      failedPayment.bank_reference || failedPayment.cf_reference_id || null,
+      failedPayment.payment_group || null,
+      failedPayment.bank_reference || null,
+      null,
+      reason,
+    );
+
+    const updatedTopup = await getTopupById(topup.id, userId);
+
+    return {
+      topup: updatedTopup,
+      wallet: await getWalletByUserId(userId),
+      payment_status: "failed",
+      status_reason: updatedTopup.status_reason,
+    };
+  }
+
+  // Empty or unrecognised Cashfree responses are not proof of failure.
+  const currentStatus =
+    topup.payment_status === "failed" ? "failed" : "pending";
+
+  const fallbackReason =
+    topup.status_reason ||
+    (currentStatus === "failed"
+      ? "Payment could not be completed. No amount was added to your wallet."
+      : "Your payment status is not yet confirmed. Your wallet has not been credited yet.");
+
+  await updateTopupStatus(
+    topup.id,
+    currentStatus,
+    null,
+    null,
+    null,
+    null,
+    null,
+    fallbackReason,
+  );
+
+  const updatedTopup = await getTopupById(topup.id, userId);
 
   return {
-    topup: await getTopupById(topup.id, userId),
+    topup: updatedTopup,
     wallet: await getWalletByUserId(userId),
-    payment_status: "failed",
+    payment_status: updatedTopup.payment_status,
+    status_reason: updatedTopup.status_reason,
   };
 };
 
@@ -240,7 +368,6 @@ const verifyWebhookSignature = (signature, timestamp, rawBody) => {
     .digest("base64");
 
   const generatedBuffer = Buffer.from(generatedSignature);
-
   const signatureBuffer = Buffer.from(signature);
 
   if (generatedBuffer.length !== signatureBuffer.length) {
@@ -270,7 +397,6 @@ const processWebhook = async (rawBody, signature, timestamp) => {
   }
 
   const orderId = payload?.data?.order?.order_id;
-
   const payment = payload?.data?.payment;
 
   if (!orderId || !payment) {
@@ -280,7 +406,7 @@ const processWebhook = async (rawBody, signature, timestamp) => {
     };
   }
 
-  const paymentStatus = payment.payment_status;
+  const paymentStatus = String(payment.payment_status || "").toUpperCase();
 
   if (paymentStatus === "SUCCESS") {
     const wallet = await creditWalletForTopup(orderId, payment);
@@ -301,112 +427,42 @@ const processWebhook = async (rawBody, signature, timestamp) => {
     };
   }
 
-  if (topup.payment_status !== "success") {
-    const status =
-      paymentStatus === "USER_DROPPED" || paymentStatus === "FAILED"
-        ? "failed"
-        : "pending";
-
-    await updateTopupStatus(
-      topup.id,
-      status,
-      payment.cf_payment_id || null,
-      payment.bank_reference || null,
-      payment.payment_group || null,
-      payment.bank_reference || null,
-    );
-  }
+  const result = await verifyCashfreePayment(topup.user_id, orderId);
 
   return {
     processed: true,
-    payment_status: topup.payment_status,
+    payment_status: result.payment_status,
+    wallet: result.wallet,
   };
 };
 
-const getWalletTransactions = async (userId, page, limit) => {
+const getWalletTransactions = async (
+  userId,
+  type = "all",
+  dateFilter = "all",
+  cursor = null,
+) => {
   const wallet = await getOrCreateWallet(userId);
 
-  const offset = (page - 1) * limit;
-
-  const transactions = await getTransactionsByWalletId(
+  return await getTransactionList(
+    userId,
     wallet.id,
-    offset,
-    limit,
+    type,
+    dateFilter,
+    cursor,
+    10,
   );
-
-  const total = await getTransactionCountByWalletId(wallet.id);
-
-  return {
-    transactions,
-    pagination: {
-      page,
-      limit,
-      total,
-      total_pages: Math.ceil(total / limit),
-    },
-  };
 };
 
-const getWalletTransaction = async (userId, transactionId) => {
+const getWalletTransaction = async (userId, transactionId, sourceType) => {
   const wallet = await getOrCreateWallet(userId);
 
-  return await getTransactionById(transactionId, wallet.id);
-};
-
-const getTopupHistory = async (userId, page, limit) => {
-  const offset = (page - 1) * limit;
-
-  const topups = await getTopupsByUserId(userId, offset, limit);
-
-  const total = await getTopupCountByUserId(userId);
-
-  return {
-    topups,
-    pagination: {
-      page,
-      limit,
-      total,
-      total_pages: Math.ceil(total / limit),
-    },
-  };
-};
-
-const getTopupDetails = async (userId, topupId) => {
-  return await getTopupById(topupId, userId);
-};
-
-const allocateWalletFund = async (userId, businessId, adId, amount) => {
-  return await allocateFund(userId, businessId, adId, amount);
-};
-
-const getAdFunds = async (userId, page, limit, status) => {
-  const offset = (page - 1) * limit;
-
-  const funds = await getFundsByUserId(userId, offset, limit, status);
-
-  const total = await getFundCountByUserId(userId, status);
-
-  return {
-    funds,
-    pagination: {
-      page,
-      limit,
-      total,
-      total_pages: Math.ceil(total / limit),
-    },
-  };
-};
-
-const getAdFund = async (userId, fundId) => {
-  return await getFundById(fundId, userId);
-};
-
-const spendWalletFund = async (userId, fundId, amount) => {
-  return await spendFund(fundId, userId, amount);
-};
-
-const requestWalletFundRefund = async (userId, fundId) => {
-  return await requestRefund(fundId, userId);
+  return await getTransactionDetails(
+    userId,
+    wallet.id,
+    transactionId,
+    sourceType,
+  );
 };
 
 export {
@@ -416,11 +472,4 @@ export {
   processWebhook,
   getWalletTransactions,
   getWalletTransaction,
-  getTopupHistory,
-  getTopupDetails,
-  allocateWalletFund,
-  getAdFunds,
-  getAdFund,
-  spendWalletFund,
-  requestWalletFundRefund,
 };
