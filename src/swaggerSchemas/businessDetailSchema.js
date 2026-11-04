@@ -42,11 +42,6 @@ const businessDetailSchema = {
         nullable: true,
         example: "GST123456789",
       },
-      tax_id_type: {
-        type: "string",
-        nullable: true,
-        example: "GSTIN",
-      },
       created_at: { type: "string", format: "date-time" },
       updated_at: { type: "string", format: "date-time" },
     },
@@ -81,9 +76,7 @@ const businessDetailSchema = {
       city: { type: "string", nullable: true, example: "Coimbatore" },
       area: { type: "string", nullable: true, example: "Gandhipuram" },
       postal_code: { type: "string", nullable: true, example: "641012" },
-      tax_id: { type: "string", nullable: true, example: "GST123456789" },
-      tax_id_type: { type: "string", nullable: true, example: "GSTIN" },
-    },
+      tax_id: { type: "string", nullable: true, example: "GST123456789" },    },
   },
 
   UpdateBusinessRequest: {
@@ -99,9 +92,7 @@ const businessDetailSchema = {
       city: { type: "string", nullable: true },
       area: { type: "string", nullable: true },
       postal_code: { type: "string", nullable: true },
-      tax_id: { type: "string", nullable: true },
-      tax_id_type: { type: "string", nullable: true },
-    },
+      tax_id: { type: "string", nullable: true },    },
   },
 
   CountryConfigurationResponse: {

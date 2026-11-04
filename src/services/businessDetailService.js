@@ -34,8 +34,7 @@ function normalizeOptionalFields(data) {
     "city",
     "area",
     "postal_code",
-    "tax_id",
-    "tax_id_type",
+    "tax_id"
   ]) {
     if (normalized[field] === "") {
       normalized[field] = null;

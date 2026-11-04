@@ -9,6 +9,8 @@ import {
   updateAdController,
 } from "../controllers/adController.js";
 
+import adCampaignController from "../controllers/adCampaignController.js";
+
 const router = express.Router();
 
 /**
@@ -340,5 +342,96 @@ router.get("/:id", middleware, getAdController);
  *         description: Internal server error.
  */
 router.put("/:id", middleware, adUpload.single("media"), updateAdController);
+
+/**
+ * @swagger
+ * /api/ads/{id}/campaign:
+ *   put:
+ *     summary: Save campaign budget and duration
+ *     tags: [Ads]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Advertisement ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - daily_budget
+ *               - duration_type
+ *             properties:
+ *               daily_budget:
+ *                 type: number
+ *                 minimum: 100
+ *                 example: 200
+ *               duration_type:
+ *                 type: string
+ *                 enum: [days, custom_date]
+ *               duration_days:
+ *                 type: integer
+ *                 minimum: 1
+ *                 example: 5
+ *               start_date:
+ *                 type: string
+ *                 format: date
+ *                 example: "2026-11-10"
+ *               end_date:
+ *                 type: string
+ *                 format: date
+ *                 example: "2026-11-14"
+ *     responses:
+ *       200:
+ *         description: Campaign budget and duration saved.
+ *       400:
+ *         description: Validation failed or insufficient wallet balance.
+ *       404:
+ *         description: Ad or wallet not found.
+ */
+router.put("/:id/campaign", middleware, adCampaignController.saveCampaign);
+
+/**
+ * @swagger
+ * /api/ads/{id}/campaign/publish:
+ *   post:
+ *     summary: Publish a draft campaign
+ *     description: >
+ *       Publishes a saved campaign. Generates exact start and end timestamps
+ *       using the configured campaign timezone. Future custom-date campaigns
+ *       are saved as pending until their scheduled start time.
+ *     tags: [Ads]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Advertisement ID
+ *     responses:
+ *       200:
+ *         description: Campaign published or scheduled successfully.
+ *       400:
+ *         description: Invalid campaign or campaign already published.
+ *       401:
+ *         description: Missing, invalid, or expired access token.
+ *       404:
+ *         description: Draft campaign or advertisement not found.
+ *       500:
+ *         description: Internal server error.
+ */
+router.post(
+  "/:id/campaign/publish",
+  middleware,
+  adCampaignController.publishCampaign,
+);
 
 export default router;

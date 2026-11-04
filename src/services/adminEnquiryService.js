@@ -1,11 +1,38 @@
 import {
-    getAllEnquiries,
     getEnquiryById,
+    getAdminEnquiries,
+    getAdminEnquiriesCount,
     updateEnquiryStatus
 } from "../models/enquiryModel.js";
 
-export const getAllAdminEnquiries = async () => {
-    return await getAllEnquiries();
+import { getListingData } from "../helpers/listingHelper.js";
+
+export const getAllAdminEnquiries = async ({
+    page = 1,
+    limit = 10,
+    search = "",
+    status = null
+} = {}) => {
+    return await getListingData({
+        page,
+        limit,
+        search,
+        filters: { status },
+
+        getData: ({ search, filters, limit, offset }) =>
+            getAdminEnquiries({
+                search,
+                status: filters.status,
+                limit,
+                offset
+            }),
+
+        getCount: (search, filters) =>
+            getAdminEnquiriesCount({
+                search,
+                status: filters.status
+            })
+    });
 };
 
 export const getAdminEnquiryById = async (id) => {

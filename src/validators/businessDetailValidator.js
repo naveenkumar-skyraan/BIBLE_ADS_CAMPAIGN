@@ -13,7 +13,6 @@ export const createBusinessSchema = Joi.object({
   postal_code: Joi.string().trim().max(30).allow(null, ""),
 
   tax_id: Joi.string().trim().max(100).allow(null, ""),
-  tax_id_type: Joi.string().trim().max(50).allow(null, ""),
 });
 
 export const updateBusinessSchema = Joi.object({
@@ -29,7 +28,6 @@ export const updateBusinessSchema = Joi.object({
   postal_code: Joi.string().trim().max(30).allow(null, ""),
 
   tax_id: Joi.string().trim().max(100).allow(null, ""),
-  tax_id_type: Joi.string().trim().max(50).allow(null, ""),
 }).min(1);
 
 export const businessIdSchema = Joi.object({

@@ -361,9 +361,15 @@ export const getTransactionList = async (
     `,
 
     last_week: `
-      AND YEARWEEK(created_at, 1) =
-          YEARWEEK(CURDATE() - INTERVAL 1 WEEK, 1)
-    `,
+    AND created_at >= DATE_SUB(
+        DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY),
+        INTERVAL 1 WEEK
+    )
+    AND created_at < DATE_SUB(
+        CURDATE(),
+        INTERVAL WEEKDAY(CURDATE()) DAY
+    )
+`,
 
     last_month: `
       AND created_at >= DATE_FORMAT(

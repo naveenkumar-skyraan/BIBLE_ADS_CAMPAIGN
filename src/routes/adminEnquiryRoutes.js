@@ -1,5 +1,7 @@
 import express from "express";
 
+import { adminAuthMiddleware } from "../middleware/adminAuthMiddleware.js";
+
 import {
     getAllAdminEnquiriesController,
     getAdminEnquiryByIdController,
@@ -8,10 +10,10 @@ import {
 
 const router = express.Router();
 
-router.get("/", getAllAdminEnquiriesController);
+router.post("/", adminAuthMiddleware, getAllAdminEnquiriesController);
 
-router.get("/:id", getAdminEnquiryByIdController);
+router.get("/:id", adminAuthMiddleware, getAdminEnquiryByIdController);
 
-router.put("/:id/status", updateAdminEnquiryStatusController);
+router.put("/:id/status", adminAuthMiddleware, updateAdminEnquiryStatusController);
 
 export default router;

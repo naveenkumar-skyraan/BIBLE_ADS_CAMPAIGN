@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import adminRoutes from "./src/routes/adminAuthRoutes.js";
 import adminEnquiryRoutes from "./src/routes/adminEnquiryRoutes.js";
 import businessDetailRoutes from "./src/routes/businessDetailRoutes.js";
+import adminBusinessDetailRoutes from "./src/routes/adminBusinessDetailRoutes.js";
 
 import adminAdObjectiveRoutes from "./src/routes/adminAdObjectiveRoutes.js";
 import adminAdTypeRoutes from "./src/routes/adminAdTypeRoutes.js";
@@ -47,15 +48,10 @@ import { startAccountDeletionJob } from "./src/jobs/accountDeletionCron.js";
 
 const app = express();
 
-const allowedOrigins = ["http://127.0.0.1:5500", "http://localhost:5500"];
-
-app.use(
-  cors({
-    origin: allowedOrigins,
-    methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  }),
-);
+app.use(cors({
+    origin: "*",
+    credentials: false,
+}));
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -95,6 +91,8 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/admin/ad-objectives", adminAdObjectiveRoutes);
 app.use("/api/admin/ad-types", adminAdTypeRoutes);
 app.use("/api/admin/ad-action-buttons", adminAdActionButtonRoutes);
+
+app.use("/api/admin/business-details", adminBusinessDetailRoutes);
 
 app.use("/api/ad-objectives", adObjectiveRoutes);
 app.use("/api/ad-types", adTypeRoutes);
