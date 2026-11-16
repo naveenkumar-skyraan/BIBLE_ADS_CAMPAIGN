@@ -98,11 +98,7 @@ const walletSchema = {
           { type: "string", pattern: "^\\d+(?:\\.\\d{1,6})?$" },
         ],
         example: "1000.00",
-        description: "Amount in the selected business country's configured currency.",
-      },
-      business_id: {
-        type: "integer",
-        description: "Optional owned business ID. Defaults to the selected business.",
+        description: "Amount in the selected/default wallet currency.",
       },
     },
   },
@@ -144,7 +140,6 @@ const walletSchema = {
           currency: { type: "string", example: "INR" },
           currency_symbol: { type: "string", example: "₹" },
           currency_decimal_places: { type: "integer", example: 2 },
-          business_id: { type: "integer", example: 1 },
           payment_status: {
             type: "string",
             enum: ["pending", "success", "failed"],

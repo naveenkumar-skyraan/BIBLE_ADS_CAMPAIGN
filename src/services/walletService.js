@@ -138,8 +138,7 @@ const resolveBusinessCurrency = async (userId, businessId = null) => {
   return { business_id: Number(rows[0].id), ...currency };
 };
 
-const createTopupOrder = async (userId, amount, businessId = null) => {
-  const businessCurrency = await resolveBusinessCurrency(userId, businessId);
+const createTopupOrder = async (userId, amount) => {
   const currencyCode = assertCashfreeCurrencyEnabled(businessCurrency.currency_code);
   const normalizedAmount = normalizeMoneyAmount(amount, currencyCode, { min: 1 });
   const currency = getCurrencyMetadata(currencyCode);
@@ -253,7 +252,6 @@ const createTopupOrder = async (userId, amount, businessId = null) => {
     currency: currencyCode,
     currency_symbol: currency.currency_symbol,
     currency_decimal_places: currency.currency_decimal_places,
-    business_id: businessCurrency.business_id,
     payment_status: "pending",
   };
 };

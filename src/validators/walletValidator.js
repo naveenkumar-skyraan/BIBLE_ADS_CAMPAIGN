@@ -4,8 +4,14 @@ const walletValidator = {
   getWallet: Joi.object({}),
 
   createTopup: Joi.object({
-    amount: Joi.alternatives().try(Joi.number().positive(), Joi.string().trim().pattern(/^\d+(?:\.\d{1,6})?$/)).required(),
-    business_id: Joi.number().integer().positive().max(Number.MAX_SAFE_INTEGER).optional(),
+    amount: Joi.alternatives()
+      .try(
+        Joi.number().positive(),
+        Joi.string()
+          .trim()
+          .pattern(/^\d+(?:\.\d{1,6})?$/),
+      )
+      .required(),
   }),
 
   verifyTopup: Joi.object({

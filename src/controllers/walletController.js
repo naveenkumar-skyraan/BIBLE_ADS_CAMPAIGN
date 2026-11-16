@@ -85,7 +85,6 @@ const createTopupController = async (req, res) => {
     const data = await createTopupOrder(
       req.user.id,
       value.amount,
-      value.business_id || null,
     );
 
     return res.status(201).json({
