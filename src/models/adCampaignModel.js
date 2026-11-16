@@ -113,7 +113,7 @@ const saveCampaign = async (adId, userId, data) => {
         FROM ads
         WHERE id = ?
           AND user_id = ?
-          AND status = 'draft'
+          AND status IN ('draft', 'active', 'paused')
           AND is_deleted = 0
         LIMIT 1
         FOR UPDATE
@@ -240,7 +240,7 @@ const saveCampaign = async (adId, userId, data) => {
             updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
             AND user_id = ?
-            AND status = 'draft'
+            AND status IN ('draft', 'active', 'paused')
             AND is_deleted = 0
         `,
         [campaignId, adId, userId],

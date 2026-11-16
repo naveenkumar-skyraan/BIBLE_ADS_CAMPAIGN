@@ -192,7 +192,7 @@ router.post(
  *         required: true
  *         schema:
  *           type: integer
- *         description: Draft ad ID
+ *         description: Ad ID. Location targeting supports draft, active, and paused ads.
  *     requestBody:
  *       required: true
  *       content:
@@ -236,7 +236,7 @@ router.post(
  *       401:
  *         description: Unauthorized
  *       404:
- *         description: Draft ad not found or not owned by the user
+ *         description: Ad not found, not editable, soft-deleted, or not owned by the authenticated user
  *       502:
  *         description: Google location service failed
  */
