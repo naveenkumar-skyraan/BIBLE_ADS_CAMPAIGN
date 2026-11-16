@@ -87,6 +87,7 @@ const options = {
         AdFundResponse: walletSchema.AdFundResponse,
 
         AdTypeResponse: adSchema.AdTypeResponse,
+        AdSubtypeResponse: adSchema.AdSubtypeResponse,
         AdObjectiveResponse: adSchema.AdObjectiveResponse,
         AdActionButtonResponse: adSchema.AdActionButtonResponse,
         GetAdTypesResponse: adSchema.GetAdTypesResponse,

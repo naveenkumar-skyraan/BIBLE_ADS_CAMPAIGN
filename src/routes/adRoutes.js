@@ -73,6 +73,11 @@ const router = express.Router();
  *         ad_type_id:
  *           type: integer
  *           example: 1
+ *         ad_subtype_id:
+ *           type: integer
+ *           nullable: true
+ *           description: Selected ad subtype ID.
+ *           example: 1
  *         title:
  *           type: string
  *           example: Youth meeting
@@ -208,6 +213,11 @@ const router = express.Router();
  *                 example: Join us for an exciting youth meeting.
  *               ad_type_id:
  *                 type: integer
+ *                 example: 1
+ *               ad_subtype_id:
+ *                 type: integer
+ *                 nullable: true
+ *                 description: Selected subtype ID. Required when the selected ad type has active subtypes.
  *                 example: 1
  *               action_button_type_id:
  *                 type: integer
@@ -453,6 +463,11 @@ router.get("/:id", middleware, getAdController);
  *                 example: Updated advertisement description.
  *               ad_type_id:
  *                 type: integer
+ *                 example: 1
+ *               ad_subtype_id:
+ *                 type: integer
+ *                 nullable: true
+ *                 description: Selected subtype ID. Required when the selected ad type has active subtypes.
  *                 example: 1
  *               action_button_type_id:
  *                 type: integer
