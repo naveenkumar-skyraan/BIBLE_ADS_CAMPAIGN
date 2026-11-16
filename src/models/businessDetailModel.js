@@ -161,16 +161,18 @@ const businessDetailModel = {
       [id, userId],
     );
 
-    const [funds] = await connection.execute(
+    const [campaigns] = await connection.execute(
       `SELECT COUNT(*) AS total
-       FROM ad_fund_allocations
-       WHERE business_id = ? AND user_id = ?`,
+       FROM ad_campaigns
+       WHERE business_id = ?
+         AND user_id = ?
+         AND is_deleted = 0`,
       [id, userId],
     );
 
     return {
       ads: Number(ads[0].total),
-      funds: Number(funds[0].total),
+      campaigns: Number(campaigns[0].total),
     };
   },
 

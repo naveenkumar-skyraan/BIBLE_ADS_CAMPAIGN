@@ -203,8 +203,7 @@ router.post(
  *               - location_name
  *               - latitude
  *               - longitude
- *               - is_radius_enabled
- *               - radius_km
+ *               - timezone
  *             properties:
  *               place_id:
  *                 type: string
@@ -224,19 +223,16 @@ router.post(
  *                 minimum: -180
  *                 maximum: 180
  *                 example: 76.9558
- *               is_radius_enabled:
- *                 type: boolean
- *                 example: true
- *               radius_km:
- *                 type: integer
- *                 enum: [5, 10, 20, 40, 60]
- *                 nullable: true
- *                 example: 20
+ *               timezone:
+ *                 type: string
+ *                 maxLength: 64
+ *                 example: Asia/Kolkata
+ *                 description: IANA timezone identifier corresponding to the selected target location
  *     responses:
  *       200:
  *         description: Location target saved successfully
  *       400:
- *         description: Validation failed
+ *         description: Validation failed or invalid IANA timezone
  *       401:
  *         description: Unauthorized
  *       404:
@@ -289,11 +285,10 @@ router.put("/:id/location-target", middleware, adLocationController.saveTarget);
  *                       type: number
  *                     longitude:
  *                       type: number
- *                     is_radius_enabled:
- *                       type: boolean
- *                     radius_km:
- *                       type: integer
- *                       nullable: true
+ *                     timezone:
+ *                       type: string
+ *                       maxLength: 64
+ *                       example: Asia/Kolkata
  *       401:
  *         description: Unauthorized
  *       404:

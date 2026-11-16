@@ -1,21 +1,22 @@
 const errorHandler = (err, req, res, next) => {
-    if (res.headersSent) {
-        return next(err);
-    }
+  if (res.headersSent) {
+    return next(err);
+  }
 
-    const statusCode = err.statusCode || 500;
+  const statusCode = err.statusCode || 500;
 
-    if (statusCode >= 500) {
-        console.error("Business Details API Error:", err);
-    }
+  if (statusCode >= 500) {
+    console.error("Business Details API Error:", err);
+  }
 
-    return res.status(statusCode).json({
-        success: false,
-        message:
-            statusCode === 500
-                ? "Internal server error."
-                : err.message || "Request failed."
-    });
+  return res.status(statusCode).json({
+    success: false,
+    message:
+      statusCode === 500
+        ? "Internal server error."
+        : err.message || "Request failed.",
+    ...(err.details ? { details: err.details } : {}),
+  });
 };
 
 export default errorHandler;

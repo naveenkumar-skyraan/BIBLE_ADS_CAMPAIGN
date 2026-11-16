@@ -54,20 +54,36 @@ const adCampaignController = {
     }
   },
 
-  async publishCampaign(req, res, next) {
+  async getCampaignEstimation(req, res, next) {
     try {
       const adId = parseAdId(req.params.id);
 
-      const result = await adCampaignService.publishCampaign(
+      const result = await adCampaignService.getCampaignEstimation(
         adId,
         req.user.id,
       );
 
       return res.status(200).json({
         success: true,
+        message: "Campaign estimation retrieved successfully.",
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async publishCampaign(req, res, next) {
+    try {
+      const adId = parseAdId(req.params.id);
+
+      const result = await adCampaignService.publishCampaign(adId, req.user.id);
+
+      return res.status(200).json({
+        success: true,
         message:
-          result.campaign.status === "pending"
-            ? "Campaign published and scheduled successfully."
+          result.ad_status === "draft"
+            ? "Campaign scheduled successfully."
             : "Campaign published successfully.",
         data: result,
       });

@@ -18,6 +18,13 @@ const parseAdId = (value) => {
   return id;
 };
 
+const hideRadiusFields = (target) => {
+  const visibleTarget = { ...target };
+  delete visibleTarget.is_radius_enabled;
+  delete visibleTarget.radius_km;
+  return visibleTarget;
+};
+
 const validate = (schema, data) => {
   const { error, value } = schema.validate(data, {
     abortEarly: false,
@@ -93,7 +100,7 @@ const adLocationController = {
       return res.status(200).json({
         success: true,
         message: "Ad location target saved successfully.",
-        data: result,
+        data: hideRadiusFields(result),
       });
     } catch (error) {
       next(error);
@@ -108,7 +115,7 @@ const adLocationController = {
 
       return res.status(200).json({
         success: true,
-        data: result,
+        data: hideRadiusFields(result),
       });
     } catch (error) {
       next(error);

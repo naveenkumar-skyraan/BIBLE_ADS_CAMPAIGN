@@ -25,29 +25,32 @@ export const saveTarget = async (adId, userId, data) => {
 
     await connection.execute(
       `INSERT INTO ad_location_targets (
-                ad_id,
-                location_name,
-                place_id,
-                latitude,
-                longitude,
-                is_radius_enabled,
-                radius_km
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE
-                location_name = VALUES(location_name),
-                place_id = VALUES(place_id),
-                latitude = VALUES(latitude),
-                longitude = VALUES(longitude),
-                is_radius_enabled = VALUES(is_radius_enabled),
-                radius_km = VALUES(radius_km),
-                updated_at = CURRENT_TIMESTAMP`,
+      ad_id,
+      location_name,
+      place_id,
+      latitude,
+      longitude,
+      timezone,
+      is_radius_enabled,
+      radius_km
+  )
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  ON DUPLICATE KEY UPDATE
+      location_name = VALUES(location_name),
+      place_id = VALUES(place_id),
+      latitude = VALUES(latitude),
+      longitude = VALUES(longitude),
+      timezone = VALUES(timezone),
+      is_radius_enabled = VALUES(is_radius_enabled),
+      radius_km = VALUES(radius_km),
+      updated_at = CURRENT_TIMESTAMP`,
       [
         adId,
         data.location_name,
         data.place_id ?? null,
         data.latitude,
         data.longitude,
+        data.timezone,
         data.is_radius_enabled ? 1 : 0,
         data.is_radius_enabled ? data.radius_km : null,
       ],
@@ -73,6 +76,7 @@ export const getTarget = async (adId, userId) => {
             t.place_id,
             t.latitude,
             t.longitude,
+            t.timezone,
             t.is_radius_enabled,
             t.radius_km,
             t.created_at,

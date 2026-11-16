@@ -26,6 +26,15 @@ const statusCodes = {
   TRANSACTION_NOT_FOUND: 404,
   USER_NOT_FOUND: 404,
   PHONE_REQUIRED: 400,
+  BUSINESS_REQUIRED: 400,
+  UNSUPPORTED_CURRENCY: 400,
+  COUNTRY_CURRENCY_NOT_CONFIGURED: 400,
+  INVALID_MONEY_AMOUNT: 400,
+  INVALID_MONEY_PRECISION: 400,
+  CASHFREE_CURRENCY_NOT_SUPPORTED: 400,
+  CASHFREE_INTERNATIONAL_NOT_ENABLED: 400,
+  PAYMENT_CURRENCY_MISMATCH: 400,
+  PAYMENT_ORDER_DETAILS_MISSING: 502,
   PAYMENT_AMOUNT_MISMATCH: 400,
   PAYMENT_NOT_SUCCESSFUL: 400,
   CASHFREE_CONFIG_ERROR: 500,
@@ -76,6 +85,7 @@ const createTopupController = async (req, res) => {
     const data = await createTopupOrder(
       req.user.id,
       value.amount,
+      value.business_id || null,
     );
 
     return res.status(201).json({
@@ -160,6 +170,7 @@ const getTransactionsController = async (req, res) => {
       value.type,
       value.date_filter,
       value.cursor,
+      value.currency_code || null,
     );
 
     return res.status(200).json({

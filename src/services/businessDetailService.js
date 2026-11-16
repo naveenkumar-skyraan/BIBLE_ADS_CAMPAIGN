@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import pool from "../configs/database/db.js";
 import businessDetailModel from "../models/businessDetailModel.js";
+import { getAllCountryCurrencies, getCurrencyByCountryCode, isCashfreeCurrencySupported } from "../utils/currencyConfig.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -88,12 +89,37 @@ function validateCountryAddressFields(country, data) {
 
 const businessDetailService = {
   async getCountryConfiguration() {
-    return getCountries();
+    const currencies = new Map(
+      getAllCountryCurrencies().map((item) => [item.country_code, item]),
+    );
+    return getCountries().map((country) => {
+      const currency = currencies.get(country.country_code) || null;
+      return {
+        ...country,
+        currency: currency ? {
+          currency_code: currency.currency_code,
+          currency_symbol: currency.currency_symbol,
+          currency_name: currency.currency_name,
+          currency_decimal_places: currency.currency_decimal_places,
+          cashfree_supported: currency.cashfree_supported,
+        } : null,
+      };
+    });
   },
 
   async getCountryConfigurationByCode(countryCode) {
     const country = validateCountry(countryCode.toUpperCase());
-    return country;
+    const currency = getCurrencyByCountryCode(country.country_code);
+    return {
+      ...country,
+      currency: currency ? {
+        currency_code: currency.currency_code,
+        currency_symbol: currency.currency_symbol,
+        currency_name: currency.currency_name,
+        currency_decimal_places: Number(currency.currency_decimal_places ?? 2),
+        cashfree_supported: isCashfreeCurrencySupported(currency.currency_code),
+      } : null,
+    };
   },
 
   async createBusiness(userId, payload) {

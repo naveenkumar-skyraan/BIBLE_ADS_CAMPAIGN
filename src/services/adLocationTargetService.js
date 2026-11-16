@@ -2,6 +2,25 @@ import * as model from "../models/adLocationModel.js";
 import googleLocationService from "./adLocationService.js";
 import { checkRadiusEligibility } from "../utils/locationDistance.js";
 
+// TEMPORARILY DISABLED: switch to true when radius targeting is implemented again.
+const RADIUS_TARGETING_ENABLED = false;
+
+const validateTimezone = (timezone) => {
+  try {
+    if (typeof timezone !== "string" || !timezone.trim()) {
+      throw new Error("Timezone is required.");
+    }
+
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+    });
+
+    return timezone;
+  } catch {
+    throw createError("Invalid IANA timezone identifier.", 400);
+  }
+};
+
 const createError = (message, statusCode) => {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -9,14 +28,15 @@ const createError = (message, statusCode) => {
 };
 
 export const saveTarget = async (adId, userId, data) => {
+  const timezone = validateTimezone(data.timezone);
+
   let location;
 
   if (data.place_id) {
-    // Resolve the Place ID on the backend rather than
-    // trusting client-submitted coordinates.
-    location = await googleLocationService.getPlaceDetails(data.place_id);
+    location = await googleLocationService.getPlaceDetails(
+      data.place_id,
+    );
   } else {
-    // Used for the mobile app's current GPS location.
     location = await googleLocationService.reverseGeocode(
       data.latitude,
       data.longitude,
@@ -26,13 +46,14 @@ export const saveTarget = async (adId, userId, data) => {
   const result = await model.saveTarget(adId, userId, {
     ...data,
     ...location,
-    is_radius_enabled: data.is_radius_enabled,
-    radius_km: data.is_radius_enabled ? data.radius_km : null,
+    timezone,
+    // Radius controls are currently hidden; retain the DB columns for later use.
+    is_radius_enabled: false,
+    radius_km: null,
   });
 
   return result;
 };
-
 export const getTarget = async (adId, userId) => {
   const target = await model.getTarget(adId, userId);
 
@@ -51,12 +72,12 @@ export const checkTargetEligibility = async (
 ) => {
   const target = await getTarget(adId, userId);
 
-  if (!target.is_radius_enabled) {
+  if (!RADIUS_TARGETING_ENABLED || !target.is_radius_enabled) {
     return {
       ad_id: Number(adId),
       radius_enabled: false,
       eligible: null,
-      message: "Radius targeting is disabled.",
+      message: "Radius targeting is temporarily disabled.",
     };
   }
 

@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import pool from "../configs/database/db.js";
 
 import {
   getOrCreateWallet,
@@ -9,12 +10,16 @@ import {
   getTopupById,
   updateTopupStatus,
   getWalletByUserId,
+  getWalletOverviewByUserId,
   getTransactionList,
   getTransactionDetails,
   creditWalletForTopup,
 } from "../models/walletModel.js";
+import { getCurrencyForCountry, getCurrencyMetadata, normalizeMoneyAmount, assertCashfreeCurrencyEnabled } from "../utils/currencyConfig.js";
+import { decimalToMicros } from "../utils/adSpendCalculator.js";
 
 const CASHFREE_API_VERSION = process.env.CASHFREE_API_VERSION || "2025-01-01";
+
 
 const CASHFREE_BASE_URL =
   process.env.CASHFREE_ENVIRONMENT === "production"
@@ -103,11 +108,42 @@ const generateOrderId = (userId) => {
 };
 
 const getWallet = async (userId) => {
-  return await getOrCreateWallet(userId);
+  const [businessRows] = await pool.execute(
+    `SELECT country_code FROM business_details WHERE user_id = ? AND is_deleted = 0 ORDER BY is_selected DESC, id DESC LIMIT 1`,
+    [userId],
+  );
+  const defaultCurrency = businessRows.length
+    ? getCurrencyForCountry(businessRows[0].country_code).currency_code
+    : "INR";
+  return await getWalletOverviewByUserId(userId, defaultCurrency);
 };
 
-const createTopupOrder = async (userId, amount) => {
-  const wallet = await getOrCreateWallet(userId);
+const resolveBusinessCurrency = async (userId, businessId = null) => {
+  const conditions = ["user_id = ?", "is_deleted = 0"];
+  const values = [userId];
+  if (businessId) {
+    conditions.push("id = ?");
+    values.push(businessId);
+  }
+  const [rows] = await pool.execute(
+    `SELECT id, country_code, is_selected FROM business_details WHERE ${conditions.join(" AND ")} ORDER BY is_selected DESC, id DESC LIMIT 1`,
+    values,
+  );
+  if (!rows.length) {
+    const error = new Error("Select or create a business before adding money to the wallet.");
+    error.code = "BUSINESS_REQUIRED";
+    throw error;
+  }
+  const currency = getCurrencyForCountry(rows[0].country_code);
+  return { business_id: Number(rows[0].id), ...currency };
+};
+
+const createTopupOrder = async (userId, amount, businessId = null) => {
+  const businessCurrency = await resolveBusinessCurrency(userId, businessId);
+  const currencyCode = assertCashfreeCurrencyEnabled(businessCurrency.currency_code);
+  const normalizedAmount = normalizeMoneyAmount(amount, currencyCode, { min: 1 });
+  const currency = getCurrencyMetadata(currencyCode);
+  const wallet = await getOrCreateWallet(userId, currencyCode);
   const user = await getUserForPayment(userId);
 
   if (!user) {
@@ -124,11 +160,17 @@ const createTopupOrder = async (userId, amount) => {
 
   const orderId = generateOrderId(userId);
 
-  const topupId = await createTopup(userId, wallet.id, amount, orderId);
+  const topupId = await createTopup(
+    userId,
+    wallet.id,
+    normalizedAmount,
+    orderId,
+    currencyCode,
+  );
 
   const payload = {
-    order_amount: Number(Number(amount).toFixed(2)),
-    order_currency: "INR",
+    order_amount: Number(normalizedAmount),
+    order_currency: currencyCode,
     order_id: orderId,
     customer_details: {
       customer_id: String(userId),
@@ -207,8 +249,11 @@ const createTopupOrder = async (userId, amount) => {
     order_id: orderId,
     cf_order_id: response.cf_order_id || null,
     payment_session_id: response.payment_session_id,
-    amount: Number(amount),
-    currency: "INR",
+    amount: Number(normalizedAmount),
+    currency: currencyCode,
+    currency_symbol: currency.currency_symbol,
+    currency_decimal_places: currency.currency_decimal_places,
+    business_id: businessCurrency.business_id,
     payment_status: "pending",
   };
 };
@@ -225,10 +270,33 @@ const verifyCashfreePayment = async (userId, orderId) => {
   if (topup.payment_status === "success") {
     return {
       topup,
-      wallet: await getWalletByUserId(userId),
+      wallet: await getWalletByUserId(userId, topup.currency_code),
       payment_status: "success",
       status_reason: null,
     };
+  }
+
+  const orderDetails = await cashfreeRequest(
+    `/orders/${encodeURIComponent(orderId)}`,
+    { method: "GET" },
+  );
+
+  const orderAmount = orderDetails?.order_amount;
+  const orderCurrency = String(orderDetails?.order_currency || "").toUpperCase();
+  if (orderAmount === undefined || !orderCurrency) {
+    const error = new Error("Cashfree order verification did not return its amount and currency.");
+    error.code = "PAYMENT_ORDER_DETAILS_MISSING";
+    throw error;
+  }
+  if (decimalToMicros(orderAmount) !== decimalToMicros(topup.amount)) {
+    const error = new Error("Cashfree order amount does not match the stored top-up amount.");
+    error.code = "PAYMENT_AMOUNT_MISMATCH";
+    throw error;
+  }
+  if (orderCurrency !== String(topup.currency_code).toUpperCase()) {
+    const error = new Error("Cashfree order currency does not match the stored top-up currency.");
+    error.code = "PAYMENT_CURRENCY_MISMATCH";
+    throw error;
   }
 
   const payments = await cashfreeRequest(
@@ -243,7 +311,7 @@ const verifyCashfreePayment = async (userId, orderId) => {
   );
 
   if (successfulPayment) {
-    const wallet = await creditWalletForTopup(orderId, successfulPayment);
+    const wallet = await creditWalletForTopup(orderId, successfulPayment, orderDetails);
 
     return {
       topup: await getTopupById(topup.id, userId),
@@ -279,7 +347,7 @@ const verifyCashfreePayment = async (userId, orderId) => {
 
     return {
       topup: updatedTopup,
-      wallet: await getWalletByUserId(userId),
+      wallet: await getWalletByUserId(userId, topup.currency_code),
       payment_status: updatedTopup.payment_status,
       status_reason: updatedTopup.status_reason,
     };
@@ -313,7 +381,7 @@ const verifyCashfreePayment = async (userId, orderId) => {
 
     return {
       topup: updatedTopup,
-      wallet: await getWalletByUserId(userId),
+      wallet: await getWalletByUserId(userId, topup.currency_code),
       payment_status: "failed",
       status_reason: updatedTopup.status_reason,
     };
@@ -344,7 +412,7 @@ const verifyCashfreePayment = async (userId, orderId) => {
 
   return {
     topup: updatedTopup,
-    wallet: await getWalletByUserId(userId),
+    wallet: await getWalletByUserId(userId, topup.currency_code),
     payment_status: updatedTopup.payment_status,
     status_reason: updatedTopup.status_reason,
   };
@@ -396,7 +464,8 @@ const processWebhook = async (rawBody, signature, timestamp) => {
     throw error;
   }
 
-  const orderId = payload?.data?.order?.order_id;
+  const orderDetails = payload?.data?.order;
+  const orderId = orderDetails?.order_id;
   const payment = payload?.data?.payment;
 
   if (!orderId || !payment) {
@@ -409,7 +478,7 @@ const processWebhook = async (rawBody, signature, timestamp) => {
   const paymentStatus = String(payment.payment_status || "").toUpperCase();
 
   if (paymentStatus === "SUCCESS") {
-    const wallet = await creditWalletForTopup(orderId, payment);
+    const wallet = await creditWalletForTopup(orderId, payment, orderDetails);
 
     return {
       processed: true,
@@ -441,8 +510,10 @@ const getWalletTransactions = async (
   type = "all",
   dateFilter = "all",
   cursor = null,
+  currencyCode = null,
 ) => {
-  const wallet = await getOrCreateWallet(userId);
+  if (currencyCode) getCurrencyMetadata(currencyCode);
+  const wallet = await getOrCreateWallet(userId, currencyCode || "INR");
 
   return await getTransactionList(
     userId,
@@ -451,6 +522,7 @@ const getWalletTransactions = async (
     dateFilter,
     cursor,
     10,
+    currencyCode,
   );
 };
 

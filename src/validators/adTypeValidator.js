@@ -1,9 +1,11 @@
-
 import Joi from "joi";
 
 const previewImageUrl = Joi.string()
     .trim()
     .max(500)
+    .allow("", null);
+
+const previewDescription = Joi.string()
     .allow("", null);
 
 export const createAdTypeSchema = Joi.object({
@@ -19,6 +21,8 @@ export const createAdTypeSchema = Joi.object({
     description: Joi.string().allow("", null).optional(),
 
     preview_image_url: previewImageUrl.optional(),
+
+    preview_description: previewDescription.optional(),
 
     sort_order: Joi.number().integer().min(0).default(0),
 
@@ -38,6 +42,8 @@ export const updateAdTypeSchema = Joi.object({
     description: Joi.string().allow("", null).optional(),
 
     preview_image_url: previewImageUrl.optional(),
+
+    preview_description: previewDescription.optional(),
 
     sort_order: Joi.number().integer().min(0).required(),
 

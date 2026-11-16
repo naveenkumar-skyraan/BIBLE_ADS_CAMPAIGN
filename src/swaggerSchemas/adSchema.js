@@ -100,6 +100,12 @@ const adSchema = {
         type: "integer",
         example: 1,
       },
+      ad_subtype_id:{
+        type: "integer",
+        nullable: true,
+        description: "Required when ad_type_id is Banner (1)",
+        example: 1,
+      },
       title: {
         type: "string",
         example: "Youth meeting",

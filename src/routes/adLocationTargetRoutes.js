@@ -31,8 +31,7 @@ const router = Router();
  *               - location_name
  *               - latitude
  *               - longitude
- *               - is_radius_enabled
- *               - radius_km
+ *               - timezone
  *             properties:
  *               place_id:
  *                 type: string
@@ -43,12 +42,9 @@ const router = Router();
  *                 type: number
  *               longitude:
  *                 type: number
- *               is_radius_enabled:
- *                 type: boolean
- *               radius_km:
- *                 type: integer
- *                 enum: [5, 10, 20, 40, 60]
- *                 nullable: true
+ *               timezone:
+ *                 type: string
+ *                 example: Asia/Kolkata
  *     responses:
  *       200:
  *         description: Location target saved successfully
@@ -90,7 +86,8 @@ router.get("/:id/location-target", middleware, adLocationController.getTarget);
  * @swagger
  * /api/ads/{id}/location-target/check:
  *   post:
- *     summary: Check whether a viewer is inside an ad's target radius
+ *     summary: Radius eligibility check (temporarily disabled)
+ *     description: Radius targeting is temporarily disabled. This endpoint remains for compatibility and returns eligible=null.
  *     tags: [Ads]
  *     security:
  *       - bearerAuth: []

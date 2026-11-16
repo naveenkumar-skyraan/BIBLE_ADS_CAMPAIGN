@@ -19,7 +19,6 @@ import userRoutes from "./src/routes/userRoutes.js";
 import socialAuthRoutes from "./src/routes/socialAuthRoutes.js";
 import enquiryRoutes from "./src/routes/enquiryRoutes.js";
 
-
 import adObjectiveRoutes from "./src/routes/adObjectiveRoutes.js";
 import adTypeRoutes from "./src/routes/adTypeRoutes.js";
 import adRoutes from "./src/routes/adRoutes.js";
@@ -28,6 +27,10 @@ import adLocationTargetRoutes from "./src/routes/adLocationTargetRoutes.js";
 
 import adActionButtonRoutes from "./src/routes/adActionButtonRoutes.js";
 import walletRoutes from "./src/routes/walletRoutes.js";
+import dashboardRoutes from "./src/routes/dashboardRoutes.js";
+import adminPricingRoutes from "./src/routes/adminPricingRoutes.js";
+import adminAdModerationRoutes from "./src/routes/adminAdModerationRoutes.js";
+
 import profileRoutes from "./src/routes/profileRoutes.js";
 
 import faqRoutes from "./src/routes/faqRoutes.js";
@@ -45,13 +48,16 @@ import errorHandler from "./src/middleware/errorHandler.js";
 
 import swaggerDocument from "./src/configs/swagger/swagger.js";
 import { startAccountDeletionJob } from "./src/jobs/accountDeletionCron.js";
+import { startAdCampaignLifecycleJob } from "./src/jobs/adCampaignLifecycleCron.js";
 
 const app = express();
 
-app.use(cors({
+app.use(
+  cors({
     origin: "*",
     credentials: false,
-}));
+  }),
+);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -59,7 +65,6 @@ const __dirname = path.dirname(__filename);
 app.use("/icons", express.static(path.join(__dirname, "public", "icons")));
 
 app.use("/uploads", express.static(path.join(__dirname, "public", "uploads")));
-
 
 app.use(
   express.json({
@@ -88,6 +93,8 @@ app.get("/", (req, res) => {
 
 app.use("/api/admin", adminRoutes);
 
+app.use("/api/admin/ads", adminAdModerationRoutes);
+
 app.use("/api/admin/ad-objectives", adminAdObjectiveRoutes);
 app.use("/api/admin/ad-types", adminAdTypeRoutes);
 app.use("/api/admin/ad-action-buttons", adminAdActionButtonRoutes);
@@ -101,7 +108,6 @@ app.use("/api/ads/locations", adLocationRoutes);
 app.use("/api/ads", adLocationTargetRoutes);
 app.use("/api/ads", adRoutes);
 
-
 app.use("/api/auth", userRoutes);
 app.use("/api/auth", socialAuthRoutes);
 
@@ -110,6 +116,8 @@ app.use("/api/admin/enquiries", adminEnquiryRoutes);
 app.use("/api/business-details", businessDetailRoutes);
 
 app.use("/api/wallet", walletRoutes);
+app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/admin/pricing", adminPricingRoutes);
 app.use("/api/settings", profileRoutes);
 
 app.use("/api/faqs", faqRoutes);
@@ -124,6 +132,7 @@ app.use(errorHandler);
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 startAccountDeletionJob();
+startAdCampaignLifecycleJob();
 
 const httpServer = createServer(app);
 

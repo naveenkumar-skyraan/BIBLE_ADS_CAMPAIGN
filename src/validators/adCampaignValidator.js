@@ -3,7 +3,10 @@ import Joi from "joi";
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
 export const saveCampaignSchema = Joi.object({
-  daily_budget: Joi.number().min(100).precision(2).required(),
+  daily_budget: Joi.alternatives().try(
+    Joi.number().positive().precision(6),
+    Joi.string().trim().pattern(/^\d+(?:\.\d{1,6})?$/),
+  ).required(),
 
   duration_type: Joi.string()
     .valid("days", "custom_date")

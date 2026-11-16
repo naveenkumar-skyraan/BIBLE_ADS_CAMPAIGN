@@ -13,6 +13,23 @@ const walletSchema = {
       balance: {
         type: "number",
         example: 1500.0,
+        description: "Balance in the selected/default currency.",
+      },
+      currency_code: { type: "string", example: "INR" },
+      currency_symbol: { type: "string", example: "₹" },
+      currency_decimal_places: { type: "integer", example: 2 },
+      balances: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            currency_code: { type: "string", example: "USD" },
+            currency_symbol: { type: "string", example: "$" },
+            currency_name: { type: "string", example: "US Dollar" },
+            currency_decimal_places: { type: "integer", example: 2 },
+            balance: { type: "number", example: 250.5 },
+          },
+        },
       },
       created_at: {
         type: "string",
@@ -32,6 +49,7 @@ const walletSchema = {
       user_id: { type: "integer", example: 10 },
       wallet_id: { type: "integer", example: 1 },
       amount: { type: "number", example: 1000 },
+      currency_code: { type: "string", example: "INR" },
       order_id: { type: "string" },
       cf_order_id: { type: "string", nullable: true },
       cf_payment_id: { type: "string", nullable: true },
@@ -75,9 +93,16 @@ const walletSchema = {
     required: ["amount"],
     properties: {
       amount: {
-        type: "number",
-        minimum: 1,
-        example: 1000,
+        oneOf: [
+          { type: "number", minimum: 1 },
+          { type: "string", pattern: "^\\d+(?:\\.\\d{1,6})?$" },
+        ],
+        example: "1000.00",
+        description: "Amount in the selected business country's configured currency.",
+      },
+      business_id: {
+        type: "integer",
+        description: "Optional owned business ID. Defaults to the selected business.",
       },
     },
   },
@@ -116,10 +141,10 @@ const walletSchema = {
             type: "number",
             example: 1000,
           },
-          currency: {
-            type: "string",
-            example: "INR",
-          },
+          currency: { type: "string", example: "INR" },
+          currency_symbol: { type: "string", example: "₹" },
+          currency_decimal_places: { type: "integer", example: 2 },
+          business_id: { type: "integer", example: 1 },
           payment_status: {
             type: "string",
             enum: ["pending", "success", "failed"],
@@ -191,6 +216,13 @@ const walletSchema = {
         default: "all",
         example: "all",
         description: "Filter transactions by type.",
+      },
+      currency_code: {
+        type: "string",
+        minLength: 3,
+        maxLength: 3,
+        example: "USD",
+        description: "Optional ISO 4217 currency filter.",
       },
       date_filter: {
         type: "string",
@@ -282,6 +314,7 @@ const walletSchema = {
                   type: "number",
                   example: 1000,
                 },
+                currency_code: { type: "string", example: "INR" },
                 balance_before: {
                   type: "number",
                   nullable: true,
@@ -428,6 +461,7 @@ const walletSchema = {
             type: "number",
             example: 1000,
           },
+          currency_code: { type: "string", example: "INR" },
           balance_before: {
             type: "number",
             nullable: true,

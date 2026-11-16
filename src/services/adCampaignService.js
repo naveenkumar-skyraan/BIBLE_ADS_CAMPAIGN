@@ -1,304 +1,198 @@
-
 import * as model from "../models/adCampaignModel.js";
 import { getWalletByUserId } from "../models/walletModel.js";
+import * as adModel from "../models/adModel.js";
+import estimateAdPerformance from "./adEstimationService.js";
+import { getTarget } from "../models/adLocationModel.js";
+import { DateTime } from "luxon";
+import {
+  decimalToMicros,
+  microsToDecimal,
+  calculatePercentageMicros,
+  PLATFORM_FEE_PERCENT,
+  GST_PERCENT,
+} from "../utils/adSpendCalculator.js";
+import {
+  getCurrencyForCountry,
+  normalizeMoneyAmount,
+} from "../utils/currencyConfig.js";
 
-const MIN_DAILY_BUDGET = 100;
-const PLATFORM_FEE_PERCENT = 30;
-const GST_PERCENT = 18;
+const MIN_DAILY_BUDGET = Number(process.env.MIN_DAILY_BUDGET || 100);
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
-const DEFAULT_CAMPAIGN_TIMEZONE = "Asia/Kolkata";
 
 const createError = (message, statusCode, details = null) => {
   const error = new Error(message);
   error.statusCode = statusCode;
-
-  if (details) {
-    error.details = details;
-  }
-
+  if (details) error.details = details;
   return error;
 };
 
-const toPaise = (amount) => Math.round(Number(amount) * 100);
-
-const toRupees = (paise) => Number((paise / 100).toFixed(2));
-
-const getDateParts = (date, timeZone) => {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(date);
-
-  return Object.fromEntries(
-    parts.map(({ type, value }) => [type, value]),
-  );
+const validateTimezone = (timezone) => {
+  try {
+    if (typeof timezone !== "string" || !timezone.trim()) throw new Error();
+    new Intl.DateTimeFormat("en-US", { timeZone: timezone });
+    return timezone;
+  } catch {
+    throw createError("Invalid campaign timezone.", 400);
+  }
 };
 
-const getTodayDate = (timeZone) => {
-  const parts = getDateParts(new Date(), timeZone);
-
-  return `${parts.year}-${parts.month}-${parts.day}`;
-};
+const getTodayDate = (timeZone) => DateTime.now().setZone(timeZone).toISODate();
 
 const parseDate = (value) => {
-  if (
-    typeof value !== "string" ||
-    !/^\d{4}-\d{2}-\d{2}$/.test(value)
-  ) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     throw createError(`Invalid date: ${value}`, 400);
   }
-
   const [year, month, day] = value.split("-").map(Number);
-
   const date = new Date(Date.UTC(year, month - 1, day));
-
-  if (
-    date.getUTCFullYear() !== year ||
-    date.getUTCMonth() !== month - 1 ||
-    date.getUTCDate() !== day
-  ) {
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
     throw createError(`Invalid date: ${value}`, 400);
   }
-
   return date;
 };
 
-const getDateDifference = (startDate, endDate) => {
-  const start = parseDate(startDate);
-  const end = parseDate(endDate);
+const getDateDifference = (startDate, endDate) =>
+  Math.floor((parseDate(endDate).getTime() - parseDate(startDate).getTime()) / MILLISECONDS_PER_DAY);
 
-  return Math.floor(
-    (end.getTime() - start.getTime()) / MILLISECONDS_PER_DAY,
+const localDateTimeToUtc = (year, month, day, hour, minute, second, timeZone) => {
+  const dateTime = DateTime.fromObject(
+    { year, month, day, hour, minute, second },
+    { zone: timeZone },
   );
-};
-
-const localDateTimeToUtc = (
-  year,
-  month,
-  day,
-  hour,
-  minute,
-  second,
-  timeZone,
-) => {
-  const targetUtcValue = Date.UTC(
-    year,
-    month - 1,
-    day,
-    hour,
-    minute,
-    second,
-  );
-
-  let candidate = targetUtcValue;
-
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    const parts = getDateParts(new Date(candidate), timeZone);
-
-    const representedUtcValue = Date.UTC(
-      Number(parts.year),
-      Number(parts.month) - 1,
-      Number(parts.day),
-      Number(parts.hour),
-      Number(parts.minute),
-      Number(parts.second),
-    );
-
-    const difference = targetUtcValue - representedUtcValue;
-
-    if (difference === 0) {
-      break;
-    }
-
-    candidate += difference;
+  if (!dateTime.isValid || dateTime.year !== year || dateTime.month !== month ||
+      dateTime.day !== day || dateTime.hour !== hour || dateTime.minute !== minute ||
+      dateTime.second !== second) {
+    throw createError("The selected local time does not exist in the campaign timezone.", 400);
   }
-
-  return new Date(candidate);
+  const offsets = dateTime.getPossibleOffsets();
+  return offsets.reduce((earliest, candidate) =>
+    candidate.toMillis() < earliest.toMillis() ? candidate : earliest,
+  ).toUTC();
 };
 
-const localDateToUtc = (
-  dateString,
-  hour,
-  minute,
-  second,
-  timeZone,
-) => {
+const localDateToUtc = (dateString, hour, minute, second, timeZone) => {
   const [year, month, day] = dateString.split("-").map(Number);
-
-  return localDateTimeToUtc(
-    year,
-    month,
-    day,
-    hour,
-    minute,
-    second,
-    timeZone,
-  );
+  return localDateTimeToUtc(year, month, day, hour, minute, second, timeZone);
 };
 
-const toMysqlUtcDateTime = (date) => {
-  const pad = (value) => String(value).padStart(2, "0");
-
-  return (
-    `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-` +
-    `${pad(date.getUTCDate())} ${pad(date.getUTCHours())}:` +
-    `${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}`
-  );
-};
-
-const calculateCustomDurationDays = (
-  startDate,
-  endDate,
-  timeZone,
-) => {
+const calculateCustomDurationDays = (startDate, endDate, timeZone) => {
   const difference = getDateDifference(startDate, endDate);
-
-  if (startDate < getTodayDate(timeZone)) {
-    throw createError("Start date cannot be in the past.", 400);
-  }
-
-  if (difference < 0) {
-    throw createError("End date must be on or after start date.", 400);
-  }
-
-  const durationDays =
-    startDate === getTodayDate(timeZone)
-      ? difference
-      : difference + 1;
-
+  const today = getTodayDate(timeZone);
+  if (startDate < today) throw createError("Start date cannot be in the past.", 400);
+  if (difference < 0) throw createError("End date must be on or after start date.", 400);
+  const durationDays = startDate === today ? difference : difference + 1;
   if (durationDays < 1) {
-    throw createError(
-      "For a custom campaign starting today, select an end date after today.",
-      400,
-    );
+    throw createError("For a custom campaign starting today, select an end date after today.", 400);
   }
-
   return durationDays;
 };
 
 const calculatePaymentSummary = (dailyBudget, durationDays) => {
-  const dailyBudgetPaise = toPaise(dailyBudget);
-
-  const actualBudgetPaise = dailyBudgetPaise * durationDays;
-
-  const platformFeePaise = Math.round(
-    (actualBudgetPaise * PLATFORM_FEE_PERCENT) / 100,
-  );
-
-  const gstPaise = Math.round(
-    (actualBudgetPaise * GST_PERCENT) / 100,
-  );
-
-  const totalPayablePaise =
-    actualBudgetPaise + platformFeePaise + gstPaise;
-
+  const dailyBudgetMicros = decimalToMicros(dailyBudget);
+  const actualBudgetMicros = dailyBudgetMicros * BigInt(durationDays);
+  const platformFeeMicros = calculatePercentageMicros(actualBudgetMicros, PLATFORM_FEE_PERCENT);
+  const gstMicros = calculatePercentageMicros(actualBudgetMicros, GST_PERCENT);
+  const payableMicros = actualBudgetMicros + platformFeeMicros + gstMicros;
   return {
-    daily_budget: toRupees(dailyBudgetPaise),
+    daily_budget: microsToDecimal(dailyBudgetMicros),
     duration_days: durationDays,
-    actual_campaign_budget: toRupees(actualBudgetPaise),
+    actual_campaign_budget: microsToDecimal(actualBudgetMicros),
     platform_fee_percentage: PLATFORM_FEE_PERCENT,
-    platform_fee: toRupees(platformFeePaise),
+    platform_fee: microsToDecimal(platformFeeMicros),
     gst_percentage: GST_PERCENT,
-    gst_amount: toRupees(gstPaise),
-    total_payable: toRupees(totalPayablePaise),
+    gst_amount: microsToDecimal(gstMicros),
+    total_payable: microsToDecimal(payableMicros),
+    currency: null,
+  };
+};
+
+const buildEstimation = async (ad, currencyCode, budget) => {
+  const pricing = await model.getCampaignPricingPreview(ad, currencyCode);
+  const estimates = {};
+  for (const [platform, rates] of Object.entries(pricing)) {
+    estimates[platform] = estimateAdPerformance({
+      objectiveId: ad.objective_id,
+      adTypeId: ad.ad_type_id,
+      mediaType: ad.media_type,
+      totalBudget: budget,
+      cpmRate: rates.cpm_rate,
+      currency: currencyCode,
+    });
+  }
+  const platforms = Object.keys(estimates);
+  return {
+    currency: currencyCode,
+    pricing,
+    platform_estimates: estimates,
+    // Compatibility fields for clients previously expecting one estimate.
+    ...estimates[platforms[0]],
   };
 };
 
 const saveCampaign = async (adId, userId, data) => {
-  const wallet = await getWalletByUserId(userId);
+  const ad = await adModel.getAdEstimationInputs(adId, userId);
+  if (!ad) throw createError("Ad details, business or active media not found.", 404);
 
-  if (!wallet) {
-    throw createError("Wallet not found.", 404);
+  if (!Number.isFinite(MIN_DAILY_BUDGET) || MIN_DAILY_BUDGET <= 0) {
+    throw new Error("MIN_DAILY_BUDGET must be a positive number.");
+  }
+  const currency = getCurrencyForCountry(ad.country_code);
+  const dailyBudget = normalizeMoneyAmount(data.daily_budget, currency.currency_code, {
+    min: MIN_DAILY_BUDGET,
+  });
+  const dailyBudgetMicros = decimalToMicros(dailyBudget);
+  const wallet = await getWalletByUserId(userId, currency.currency_code);
+  if (!wallet) throw createError("Wallet not found. Please add funds first.", 404);
+
+  const availableBalanceMicros = decimalToMicros(wallet.balance || 0);
+  if (availableBalanceMicros < dailyBudgetMicros) {
+    throw createError("Daily budget cannot exceed the available wallet balance.", 400, {
+      currency: currency.currency_code,
+      available_balance: microsToDecimal(availableBalanceMicros),
+      minimum_daily_budget: MIN_DAILY_BUDGET,
+    });
   }
 
-  const availableBalance = Number(wallet.balance || 0);
-  const availableBalancePaise = toPaise(availableBalance);
-
-  if (
-    !Number.isFinite(availableBalance) ||
-    availableBalance < MIN_DAILY_BUDGET
-  ) {
-    throw createError(
-      "Insufficient wallet balance. Please add funds.",
-      400,
-      {
-        available_balance: availableBalance,
-        minimum_daily_budget: MIN_DAILY_BUDGET,
-      },
-    );
+  const target = await getTarget(adId, userId);
+  if (!target) {
+    throw createError("Please complete location targeting before configuring the campaign.", 400);
   }
-
-  const dailyBudget = Number(data.daily_budget);
-  const dailyBudgetPaise = toPaise(dailyBudget);
-
-  if (
-    !Number.isFinite(dailyBudget) ||
-    dailyBudgetPaise < toPaise(MIN_DAILY_BUDGET) ||
-    dailyBudgetPaise > availableBalancePaise
-  ) {
-    throw createError(
-      "Daily budget must be between ₹100 and your available wallet balance.",
-      400,
-      {
-        minimum_daily_budget: MIN_DAILY_BUDGET,
-        maximum_daily_budget: availableBalance,
-        available_balance: availableBalance,
-      },
-    );
-  }
-
-  const timezone = DEFAULT_CAMPAIGN_TIMEZONE;
+  const timezone = validateTimezone(target.timezone);
 
   let durationDays;
   let startDate = null;
   let endDate = null;
-
   if (data.duration_type === "days") {
     durationDays = data.duration_days;
   } else {
     startDate = data.start_date;
     endDate = data.end_date;
-
-    durationDays = calculateCustomDurationDays(
-      startDate,
-      endDate,
-      timezone,
-    );
+    durationDays = calculateCustomDurationDays(startDate, endDate, timezone);
+  }
+  if (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > 3660) {
+    throw createError("Campaign duration must be between 1 and 3660 days.", 400);
   }
 
-  const paymentSummary = calculatePaymentSummary(
-    dailyBudget,
-    durationDays,
-  );
-
-  const requiredAmountPaise = toPaise(
-    paymentSummary.total_payable,
-  );
-
-  if (availableBalancePaise < requiredAmountPaise) {
-    throw createError(
-      "Insufficient wallet balance. Please add funds before continuing.",
-      400,
-      {
-        available_balance: availableBalance,
-        required_amount: paymentSummary.total_payable,
-        additional_amount_required: toRupees(
-          requiredAmountPaise - availableBalancePaise,
-        ),
-        payment_summary: paymentSummary,
-      },
-    );
+  const paymentSummary = calculatePaymentSummary(dailyBudget, durationDays);
+  paymentSummary.currency = currency.currency_code;
+  paymentSummary.currency_symbol = currency.currency_symbol;
+  const requiredMicros = decimalToMicros(paymentSummary.total_payable);
+  if (availableBalanceMicros < requiredMicros) {
+    const additional = requiredMicros - availableBalanceMicros;
+    throw createError("Insufficient wallet balance. Please add funds before continuing.", 400, {
+      currency: currency.currency_code,
+      available_balance: microsToDecimal(availableBalanceMicros),
+      required_amount: paymentSummary.total_payable,
+      additional_amount_required: microsToDecimal(additional),
+      payment_summary: paymentSummary,
+    });
   }
 
+  // TEMPORARILY DISABLED: campaign estimation will be re-enabled later.
+  // const estimation = await buildEstimation(ad, currency.currency_code, paymentSummary.actual_campaign_budget);
   const campaign = await model.saveCampaign(adId, userId, {
     daily_budget: paymentSummary.daily_budget,
     total_budget: paymentSummary.actual_campaign_budget,
+    currency_code: currency.currency_code,
     duration_type: data.duration_type,
     duration_days: durationDays,
     start_date: startDate,
@@ -308,148 +202,86 @@ const saveCampaign = async (adId, userId, data) => {
 
   return {
     campaign,
+    currency,
     payment_summary: paymentSummary,
+    // estimation, // TEMPORARILY DISABLED; retain for future estimation support.
     wallet: {
-      available_balance: availableBalance,
-      maximum_daily_budget: availableBalance,
+      available_balance: microsToDecimal(availableBalanceMicros),
+      currency: currency.currency_code,
+      maximum_daily_budget: microsToDecimal(availableBalanceMicros),
       required_amount: paymentSummary.total_payable,
-      additional_amount_required: 0,
+      additional_amount_required: "0.000000",
       sufficient_balance: true,
     },
   };
 };
 
+const getCampaignEstimation = async (adId, userId) => {
+  const campaign = await model.getCampaignEstimationData(adId, userId);
+  if (!campaign) throw createError("Draft campaign not found.", 404);
+  const currency = getCurrencyForCountry(campaign.country_code);
+  return buildEstimation(campaign, currency.currency_code, campaign.total_budget);
+};
+
 const publishCampaign = async (adId, userId) => {
-  const campaign = await model.getDraftCampaignForPublish(
-    adId,
-    userId,
-  );
+  const campaign = await model.getDraftCampaignForPublish(adId, userId);
+  const timezone = validateTimezone(campaign.timezone);
+  const now = DateTime.now().setZone(timezone);
+  const today = now.toISODate();
 
-  const timezone =
-    campaign.timezone || DEFAULT_CAMPAIGN_TIMEZONE;
-
-  const now = new Date();
-  const nowParts = getDateParts(now, timezone);
-
-  const today = `${nowParts.year}-${nowParts.month}-${nowParts.day}`;
-
-  let startDateTime;
-  let endDateTime;
+  let startDate;
+  let endDate;
+  let startTimestamp;
+  let endTimestamp;
   let campaignStatus;
 
   if (campaign.duration_type === "days") {
     const durationDays = Number(campaign.duration_days);
-
-    if (!Number.isInteger(durationDays) || durationDays < 1) {
-      throw createError("Invalid campaign duration.", 400);
-    }
-
-    const start = now;
-
-    const end = new Date(
-      start.getTime() + durationDays * MILLISECONDS_PER_DAY,
-    );
-
-    startDateTime = toMysqlUtcDateTime(start);
-    endDateTime = toMysqlUtcDateTime(end);
-
+    if (!Number.isInteger(durationDays) || durationDays < 1) throw createError("Invalid campaign duration.", 400);
+    const endLocalDate = now.startOf("day").plus({ days: durationDays });
+    const end = localDateTimeToUtc(endLocalDate.year, endLocalDate.month, endLocalDate.day,
+      now.hour, now.minute, now.second, timezone);
+    startDate = today;
+    endDate = endLocalDate.toISODate();
+    startTimestamp = Math.floor(now.toUTC().toSeconds());
+    endTimestamp = Math.floor(end.toSeconds());
     campaignStatus = "active";
   } else if (campaign.duration_type === "custom_date") {
     const selectedStartDate = campaign.selected_start_date;
     const selectedEndDate = campaign.selected_end_date;
-
-    if (!selectedStartDate || !selectedEndDate) {
-      throw createError(
-        "Custom campaign start and end dates are required.",
-        400,
-      );
-    }
-
+    if (!selectedStartDate || !selectedEndDate) throw createError("Custom campaign start and end dates are required.", 400);
     parseDate(selectedStartDate);
     parseDate(selectedEndDate);
-
-    if (selectedStartDate < today) {
-      throw createError("Campaign start date cannot be in the past.", 400);
-    }
-
-    if (selectedEndDate < selectedStartDate) {
-      throw createError(
-        "Campaign end date must be on or after its start date.",
-        400,
-      );
-    }
+    if (selectedStartDate < today) throw createError("Campaign start date cannot be in the past.", 400);
+    if (selectedEndDate < selectedStartDate) throw createError("Campaign end date must be on or after its start date.", 400);
 
     if (selectedStartDate === today) {
-      const difference = getDateDifference(
-        selectedStartDate,
-        selectedEndDate,
-      );
-
-      if (difference < 1) {
-        throw createError(
-          "For a custom campaign starting today, select an end date after today.",
-          400,
-        );
+      if (getDateDifference(selectedStartDate, selectedEndDate) < 1) {
+        throw createError("For a custom campaign starting today, select an end date after today.", 400);
       }
-
-      const start = now;
-
-      const end = localDateToUtc(
-        selectedEndDate,
-        Number(nowParts.hour),
-        Number(nowParts.minute),
-        Number(nowParts.second),
-        timezone,
-      );
-
-      startDateTime = toMysqlUtcDateTime(start);
-      endDateTime = toMysqlUtcDateTime(end);
-
+      const end = localDateToUtc(selectedEndDate, now.hour, now.minute, now.second, timezone);
+      startDate = selectedStartDate;
+      endDate = selectedEndDate;
+      startTimestamp = Math.floor(now.toUTC().toSeconds());
+      endTimestamp = Math.floor(end.toSeconds());
       campaignStatus = "active";
     } else {
-      const start = localDateToUtc(
-        selectedStartDate,
-        0,
-        0,
-        0,
-        timezone,
-      );
-
-      const end = localDateToUtc(
-        selectedEndDate,
-        23,
-        59,
-        59,
-        timezone,
-      );
-
-      startDateTime = toMysqlUtcDateTime(start);
-      endDateTime = toMysqlUtcDateTime(end);
-
-      campaignStatus = "pending";
+      const start = localDateToUtc(selectedStartDate, 0, 0, 0, timezone);
+      const end = localDateToUtc(selectedEndDate, 23, 59, 59, timezone);
+      startDate = selectedStartDate;
+      endDate = selectedEndDate;
+      startTimestamp = Math.floor(start.toSeconds());
+      endTimestamp = Math.floor(end.toSeconds());
+      campaignStatus = "draft";
     }
   } else {
     throw createError("Invalid campaign duration type.", 400);
   }
 
-  const result = await model.publishCampaign(
-    adId,
-    userId,
-    {
-      startDateTime,
-      endDateTime,
-      campaignStatus,
-    },
-  );
-
-  return {
-    ...result,
-    timezone,
-    timestamps_timezone: "UTC",
-  };
+  const result = await model.publishCampaign(adId, userId, {
+    startDate, endDate, startTimestamp, endTimestamp, campaignStatus,
+  });
+  return { ...result, timezone, timestamps_timezone: "UTC" };
 };
 
-export default {
-  saveCampaign,
-  publishCampaign,
-};
+export default { saveCampaign, publishCampaign, getCampaignEstimation };
