@@ -397,10 +397,11 @@ export const reactivateAccount = async (userId) => {
 
 export const permanentlyDeleteExpiredAccounts = async () => {
   const [result] = await pool.execute(
-    `DELETE FROM users
-        WHERE is_account_deleted = 1
-        AND account_deleted_at IS NOT NULL
-        AND account_deleted_at <= DATE_SUB(NOW(), INTERVAL 30 DAY)`,
+    `UPDATE users
+     SET permanently_deleted = 1
+     WHERE permanently_deleted = 0
+       AND is_account_deleted = 0
+       AND last_activity_at <= DATE_SUB(NOW(), INTERVAL 30 DAY)`
   );
 
   return result.affectedRows;
