@@ -28,11 +28,7 @@ export const createAdSchema = Joi.object({
   description: baseFields.description.required(),
   ad_type_id: baseFields.ad_type_id.required(),
 
-  ad_subtype_id: Joi.when("ad_type_id", {
-    is: 1,
-    then: Joi.number().integer().positive().required(),
-    otherwise: Joi.number().integer().positive().allow(null),
-  }),
+  ad_subtype_id: baseFields.ad_subtype_id,
 
   platform: baseFields.platform.required(),
 }).unknown(false);

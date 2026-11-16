@@ -54,15 +54,26 @@ const validateAdSubtype = async (subtypeId, adTypeId) => {
 const prepareAdSubtype = async (adTypeId, subtypeId) => {
   const typeId = Number(adTypeId);
 
-  if (typeId === 1 && (subtypeId == null || subtypeId === "")) {
-    throw createError("Please select a banner ad subtype.", 400);
+  const [subtypeRows] = await db.execute(
+    `SELECT id
+     FROM ad_subtypes
+     WHERE ad_type_id = ?
+       AND is_active = 1
+     LIMIT 1`,
+    [typeId],
+  );
+
+  const hasSubtypes = subtypeRows.length > 0;
+
+  if (hasSubtypes && (subtypeId == null || subtypeId === "")) {
+    throw createError("Please select an ad subtype.", 400);
+  }
+
+  if (!hasSubtypes && subtypeId != null && subtypeId !== "") {
+    throw createError("Ad subtypes are not available for this ad type.", 400);
   }
 
   if (subtypeId != null && subtypeId !== "") {
-    if (typeId !== 1) {
-      throw createError("Ad subtypes are not available for this ad type.", 400);
-    }
-
     const parsedSubtypeId = Number(subtypeId);
 
     if (!Number.isInteger(parsedSubtypeId) || parsedSubtypeId <= 0) {
@@ -297,7 +308,6 @@ export const getAdModerationHistory = async (adId, userId) => {
   return result;
 };
 
-
 export const cancelAd = async (adId, userId, data) => {
   if (!/^[1-9]\d*$/.test(String(adId))) {
     throw createError("Invalid advertisement ID.", 400);
@@ -306,9 +316,7 @@ export const cancelAd = async (adId, userId, data) => {
   const result = await model.cancelActiveAd(adId, userId, {
     reason_code: data.reason_code,
     other_reason:
-      data.reason_code === "other"
-        ? data.other_reason.trim()
-        : null,
+      data.reason_code === "other" ? data.other_reason.trim() : null,
   });
 
   if (result.notFound) {
@@ -316,10 +324,7 @@ export const cancelAd = async (adId, userId, data) => {
   }
 
   if (result.invalidState) {
-    throw createError(
-      "Only active advertisements can be cancelled.",
-      409,
-    );
+    throw createError("Only active advertisements can be cancelled.", 409);
   }
 
   return result;
