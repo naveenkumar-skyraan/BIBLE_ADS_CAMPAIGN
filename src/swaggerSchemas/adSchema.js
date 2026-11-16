@@ -1,4 +1,51 @@
+
 const adSchema = {
+  AdSubtypeResponse: {
+    type: "object",
+    properties: {
+      id: {
+        type: "integer",
+        example: 1,
+      },
+      ad_type_id: {
+        type: "integer",
+        example: 1,
+      },
+      name: {
+        type: "string",
+        example: "Single Image",
+      },
+      code: {
+        type: "string",
+        example: "SINGLE_IMAGE",
+      },
+      description: {
+        type: "string",
+        nullable: true,
+        example: "Advertisement using a single image.",
+      },
+      preview_image_url: {
+        type: "string",
+        nullable: true,
+        example: "/uploads/ad-previews/single-image.png",
+      },
+      preview_description: {
+        type: "string",
+        nullable: true,
+        example: "Preview of the single image ad subtype.",
+      },
+      sort_order: {
+        type: "integer",
+        example: 1,
+      },
+      is_active: {
+        type: "integer",
+        enum: [0, 1],
+        example: 1,
+      },
+    },
+  },
+
   AdTypeResponse: {
     type: "object",
     properties: {
@@ -19,7 +66,6 @@ const adSchema = {
         nullable: true,
         example: "Engage with a single image.",
       },
-
       preview_image_url: {
         type: "string",
         nullable: true,
@@ -27,7 +73,12 @@ const adSchema = {
           "Default preview image URL or public path for this ad type.",
         example: "/uploads/ad-previews/banner.png",
       },
-
+      preview_description: {
+        type: "string",
+        nullable: true,
+        description: "Preview description for the ad type.",
+        example: "Preview of the selected ad type.",
+      },
       sort_order: {
         type: "integer",
         example: 1,
@@ -36,6 +87,14 @@ const adSchema = {
         type: "integer",
         enum: [0, 1],
         example: 1,
+      },
+      sub_types: {
+        type: "array",
+        description:
+          "Active subtypes belonging to this ad type. Empty when no subtypes are available.",
+        items: {
+          $ref: "#/components/schemas/AdSubtypeResponse",
+        },
       },
     },
   },
@@ -100,10 +159,11 @@ const adSchema = {
         type: "integer",
         example: 1,
       },
-      ad_subtype_id:{
+      ad_subtype_id: {
         type: "integer",
         nullable: true,
-        description: "Required when ad_type_id is Banner (1)",
+        description:
+          "Selected subtype ID. Required when the selected ad type has active subtypes. Must belong to the selected ad type.",
         example: 1,
       },
       title: {
