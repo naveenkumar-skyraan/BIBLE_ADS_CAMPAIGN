@@ -541,6 +541,172 @@ router.put("/:id", middleware, adUpload.single("media"), updateAdController);
 /**
  * @swagger
  * /api/ads/{id}/campaign:
+ *   get:
+ *     summary: Retrieve saved campaign details for an advertisement
+ *     description: >
+ *       Retrieves the campaign configuration saved for the specified ad ID,
+ *       including budget, duration, dates, timestamps, timezone, status,
+ *       currency, payment summary, and any CPM/CPC pricing snapshots.
+ *       Only the authenticated ad owner can retrieve the campaign.
+ *     tags: [Ads]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Advertisement ID (not campaign ID)
+ *     responses:
+ *       200:
+ *         description: Campaign details retrieved successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Campaign details retrieved successfully.
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     campaign:
+ *                       type: object
+ *                       properties:
+ *                         ad_id:
+ *                           type: integer
+ *                           example: 26
+ *                         campaign_id:
+ *                           type: integer
+ *                           example: 16
+ *                         id:
+ *                           type: integer
+ *                           example: 16
+ *                         ad_status:
+ *                           type: string
+ *                           example: draft
+ *                         last_completed_step:
+ *                           type: integer
+ *                           example: 3
+ *                         currency_code:
+ *                           type: string
+ *                           example: INR
+ *                         budget_type:
+ *                           type: string
+ *                           example: daily
+ *                         total_budget:
+ *                           type: string
+ *                           example: "1000.000000"
+ *                         daily_budget:
+ *                           type: string
+ *                           example: "200.000000"
+ *                         duration_type:
+ *                           type: string
+ *                           enum: [days, custom_date]
+ *                         duration_days:
+ *                           type: integer
+ *                           example: 5
+ *                         start_date:
+ *                           type: string
+ *                           nullable: true
+ *                           example: "2026-11-20"
+ *                         end_date:
+ *                           type: string
+ *                           nullable: true
+ *                           example: "2026-11-24"
+ *                         start_timestamp:
+ *                           type: integer
+ *                           nullable: true
+ *                         end_timestamp:
+ *                           type: integer
+ *                           nullable: true
+ *                         timezone:
+ *                           type: string
+ *                           example: Asia/Kolkata
+ *                         status:
+ *                           type: string
+ *                           example: draft
+ *                         is_scheduled:
+ *                           type: boolean
+ *                           example: false
+ *                         pricing_snapshots:
+ *                           type: array
+ *                           items:
+ *                             type: object
+ *                             properties:
+ *                               platform:
+ *                                 type: string
+ *                                 enum: [android, ios]
+ *                               cpm_rate:
+ *                                 type: string
+ *                               cpc_rate:
+ *                                 type: string
+ *                               currency_code:
+ *                                 type: string
+ *                     currency:
+ *                       type: object
+ *                       properties:
+ *                         currency_code:
+ *                           type: string
+ *                           example: INR
+ *                         currency_symbol:
+ *                           type: string
+ *                           example: ₹
+ *                     payment_summary:
+ *                       type: object
+ *                       properties:
+ *                         daily_budget:
+ *                           type: string
+ *                         duration_days:
+ *                           type: integer
+ *                         actual_campaign_budget:
+ *                           type: string
+ *                         platform_fee_percentage:
+ *                           type: number
+ *                         platform_fee:
+ *                           type: string
+ *                         gst_percentage:
+ *                           type: number
+ *                         gst_amount:
+ *                           type: string
+ *                         total_payable:
+ *                           type: string
+ *                         currency:
+ *                           type: string
+ *                     wallet:
+ *                       type: object
+ *                       properties:
+ *                         available_balance:
+ *                           type: string
+ *                         currency:
+ *                           type: string
+ *                         maximum_daily_budget:
+ *                           type: string
+ *                         required_amount:
+ *                           type: string
+ *                         additional_amount_required:
+ *                           type: string
+ *                         sufficient_balance:
+ *                           type: boolean
+ *       400:
+ *         description: Invalid advertisement ID or unsupported campaign currency.
+ *       401:
+ *         description: Missing, invalid, or expired access token.
+ *       404:
+ *         description: Campaign not found, ad not found, or campaign not owned by the authenticated user.
+ *       500:
+ *         description: Internal server error.
+ */
+router.get("/:id/campaign", middleware, adCampaignController.getCampaignDetails);
+
+/**
+ * @swagger
+ * /api/ads/{id}/campaign:
  *   put:
  *     summary: Save or update campaign budget and duration
  *     description: >

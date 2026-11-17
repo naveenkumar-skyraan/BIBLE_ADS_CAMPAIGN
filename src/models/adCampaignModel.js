@@ -574,6 +574,73 @@ const saveCampaign = async (adId, userId, data, schedule = null) => {
   }
 };
 
+const getCampaignDetails = async (adId, userId) => {
+  const [campaignRows] = await pool.execute(
+    `
+      SELECT
+        a.id AS ad_id,
+        a.campaign_id,
+        a.status AS ad_status,
+        a.last_completed_step,
+        a.objective_id,
+        a.ad_type_id,
+        a.ad_subtype_id,
+        a.platform AS ad_platform,
+        c.id,
+        c.user_id,
+        c.business_id,
+        c.currency_code,
+        c.budget_type,
+        c.total_budget,
+        c.daily_budget,
+        c.duration_type,
+        c.duration_days,
+        DATE_FORMAT(c.start_date, '%Y-%m-%d') AS start_date,
+        DATE_FORMAT(c.end_date, '%Y-%m-%d') AS end_date,
+        c.start_timestamp,
+        c.end_timestamp,
+        c.timezone,
+        c.status,
+        c.created_at,
+        c.updated_at
+      FROM ads a
+      INNER JOIN ad_campaigns c
+        ON c.id = a.campaign_id
+        AND c.user_id = a.user_id
+      WHERE a.id = ?
+        AND a.user_id = ?
+        AND a.is_deleted = 0
+        AND c.is_deleted = 0
+      LIMIT 1
+    `,
+    [adId, userId],
+  );
+
+  if (campaignRows.length === 0) return null;
+
+  const campaign = campaignRows[0];
+  const [pricingRows] = await pool.execute(
+    `
+      SELECT
+        platform,
+        cpm_pricing_rule_id,
+        cpc_pricing_rule_id,
+        currency_code,
+        cpm_rate,
+        cpc_rate
+      FROM ad_campaign_pricing
+      WHERE campaign_id = ?
+      ORDER BY platform ASC, id ASC
+    `,
+    [campaign.id],
+  );
+
+  return {
+    ...campaign,
+    pricing_snapshots: pricingRows,
+  };
+};
+
 const getDraftCampaignForPublish = async (adId, userId) => {
   const [rows] = await pool.execute(
     `
@@ -1018,6 +1085,7 @@ const getCampaignPricingPreview = async (ad, currencyCode) => {
 
 export {
   saveCampaign,
+  getCampaignDetails,
   getDraftCampaignForPublish,
   publishCampaign,
   getCampaignEstimationData,

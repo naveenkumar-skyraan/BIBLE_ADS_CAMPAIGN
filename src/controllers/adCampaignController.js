@@ -32,6 +32,25 @@ const validate = (schema, data) => {
 };
 
 const adCampaignController = {
+  async getCampaignDetails(req, res, next) {
+    try {
+      const adId = parseAdId(req.params.id);
+
+      const result = await adCampaignService.getCampaignDetails(
+        adId,
+        req.user.id,
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: "Campaign details retrieved successfully.",
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async saveCampaign(req, res, next) {
     try {
       const adId = parseAdId(req.params.id);

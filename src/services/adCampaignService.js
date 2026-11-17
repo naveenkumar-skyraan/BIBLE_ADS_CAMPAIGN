@@ -13,6 +13,7 @@ import {
 } from "../utils/adSpendCalculator.js";
 import {
   getCurrencyForCountry,
+  getCurrencyMetadata,
   normalizeMoneyAmount,
 } from "../utils/currencyConfig.js";
 
@@ -178,9 +179,11 @@ const buildCampaignSchedule = ({
   };
 };
 
-const calculatePaymentSummary = (dailyBudget, durationDays) => {
+const calculatePaymentSummary = (dailyBudget, durationDays, savedTotalBudget = null) => {
   const dailyBudgetMicros = decimalToMicros(dailyBudget);
-  const actualBudgetMicros = dailyBudgetMicros * BigInt(durationDays);
+  const actualBudgetMicros = savedTotalBudget === null
+    ? dailyBudgetMicros * BigInt(durationDays)
+    : decimalToMicros(savedTotalBudget);
   const platformFeeMicros = calculatePercentageMicros(actualBudgetMicros, PLATFORM_FEE_PERCENT);
   const gstMicros = calculatePercentageMicros(actualBudgetMicros, GST_PERCENT);
   const payableMicros = actualBudgetMicros + platformFeeMicros + gstMicros;
@@ -316,6 +319,58 @@ const saveCampaign = async (adId, userId, data) => {
   };
 };
 
+const getCampaignDetails = async (adId, userId) => {
+  const campaign = await model.getCampaignDetails(adId, userId);
+  if (!campaign) {
+    throw createError("Campaign details not found for this ad.", 404);
+  }
+
+  const currency = getCurrencyMetadata(campaign.currency_code);
+  const paymentSummary = calculatePaymentSummary(
+    campaign.daily_budget,
+    campaign.duration_days,
+    campaign.total_budget,
+  );
+  paymentSummary.currency = currency.currency_code;
+  paymentSummary.currency_symbol = currency.currency_symbol;
+
+  // Return the current wallet balance for the campaign currency so the
+  // Step 3 screen can show the same wallet context as the save response.
+  const walletRecord = await getWalletByUserId(userId, currency.currency_code);
+  const availableBalanceMicros = decimalToMicros(walletRecord?.balance ?? 0);
+  const requiredAmountMicros = decimalToMicros(paymentSummary.total_payable);
+  const additionalAmountMicros = requiredAmountMicros > availableBalanceMicros
+    ? requiredAmountMicros - availableBalanceMicros
+    : 0n;
+
+  const nowTimestamp = Math.floor(Date.now() / 1000);
+  const isScheduled =
+    campaign.status === "draft" &&
+    campaign.start_timestamp !== null &&
+    campaign.start_timestamp !== undefined &&
+    Number(campaign.start_timestamp) > nowTimestamp &&
+    campaign.end_timestamp !== null &&
+    campaign.end_timestamp !== undefined &&
+    Number(campaign.end_timestamp) >= nowTimestamp;
+
+  return {
+    campaign: {
+      ...campaign,
+      is_scheduled: isScheduled,
+    },
+    currency,
+    payment_summary: paymentSummary,
+    wallet: {
+      available_balance: microsToDecimal(availableBalanceMicros),
+      currency: currency.currency_code,
+      maximum_daily_budget: microsToDecimal(availableBalanceMicros),
+      required_amount: paymentSummary.total_payable,
+      additional_amount_required: microsToDecimal(additionalAmountMicros),
+      sufficient_balance: availableBalanceMicros >= requiredAmountMicros,
+    },
+  };
+};
+
 const getCampaignEstimation = async (adId, userId) => {
   const campaign = await model.getCampaignEstimationData(adId, userId);
   if (!campaign) throw createError("Draft campaign not found.", 404);
@@ -338,4 +393,9 @@ const publishCampaign = async (adId, userId) => {
   return { ...result, timezone, timestamps_timezone: "UTC" };
 };
 
-export default { saveCampaign, publishCampaign, getCampaignEstimation };
+export default {
+  saveCampaign,
+  getCampaignDetails,
+  publishCampaign,
+  getCampaignEstimation,
+};
