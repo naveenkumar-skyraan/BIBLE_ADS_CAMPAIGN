@@ -46,7 +46,9 @@ const adCampaignController = {
 
       return res.status(200).json({
         success: true,
-        message: "Campaign budget and duration saved successfully.",
+        message: result.campaign?.scheduled_edit_applied
+          ? "Scheduled campaign updated successfully."
+          : "Campaign budget and duration saved successfully.",
         data: result,
       });
     } catch (error) {

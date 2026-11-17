@@ -86,6 +86,98 @@ const calculateCustomDurationDays = (startDate, endDate, timeZone) => {
   return durationDays;
 };
 
+
+const buildCampaignSchedule = ({
+  duration_type,
+  duration_days,
+  start_date,
+  end_date,
+  timezone,
+}) => {
+  const now = DateTime.now().setZone(timezone);
+  const today = now.toISODate();
+
+  if (duration_type === "days") {
+    const durationDays = Number(duration_days);
+    if (!Number.isInteger(durationDays) || durationDays < 1) {
+      throw createError("Invalid campaign duration.", 400);
+    }
+
+    const endLocalDate = now.startOf("day").plus({ days: durationDays });
+    const end = localDateTimeToUtc(
+      endLocalDate.year,
+      endLocalDate.month,
+      endLocalDate.day,
+      now.hour,
+      now.minute,
+      now.second,
+      timezone,
+    );
+
+    return {
+      startDate: today,
+      endDate: endLocalDate.toISODate(),
+      startTimestamp: Math.floor(now.toUTC().toSeconds()),
+      endTimestamp: Math.floor(end.toSeconds()),
+      campaignStatus: "active",
+    };
+  }
+
+  if (duration_type !== "custom_date") {
+    throw createError("Invalid campaign duration type.", 400);
+  }
+
+  if (!start_date || !end_date) {
+    throw createError("Custom campaign start and end dates are required.", 400);
+  }
+
+  parseDate(start_date);
+  parseDate(end_date);
+
+  if (start_date < today) {
+    throw createError("Campaign start date cannot be in the past.", 400);
+  }
+  if (end_date < start_date) {
+    throw createError("Campaign end date must be on or after its start date.", 400);
+  }
+
+  if (start_date === today) {
+    if (getDateDifference(start_date, end_date) < 1) {
+      throw createError(
+        "For a custom campaign starting today, select an end date after today.",
+        400,
+      );
+    }
+
+    const end = localDateToUtc(
+      end_date,
+      now.hour,
+      now.minute,
+      now.second,
+      timezone,
+    );
+
+    return {
+      startDate: start_date,
+      endDate: end_date,
+      startTimestamp: Math.floor(now.toUTC().toSeconds()),
+      endTimestamp: Math.floor(end.toSeconds()),
+      campaignStatus: "active",
+    };
+  }
+
+  const start = localDateToUtc(start_date, 0, 0, 0, timezone);
+  const end = localDateToUtc(end_date, 23, 59, 59, timezone);
+
+  return {
+    startDate: start_date,
+    endDate: end_date,
+    startTimestamp: Math.floor(start.toSeconds()),
+    endTimestamp: Math.floor(end.toSeconds()),
+    campaignStatus: "draft",
+  };
+};
+
 const calculatePaymentSummary = (dailyBudget, durationDays) => {
   const dailyBudgetMicros = decimalToMicros(dailyBudget);
   const actualBudgetMicros = dailyBudgetMicros * BigInt(durationDays);
@@ -189,6 +281,14 @@ const saveCampaign = async (adId, userId, data) => {
 
   // TEMPORARILY DISABLED: campaign estimation will be re-enabled later.
   // const estimation = await buildEstimation(ad, currency.currency_code, paymentSummary.actual_campaign_budget);
+  const schedule = buildCampaignSchedule({
+    duration_type: data.duration_type,
+    duration_days: durationDays,
+    start_date: startDate,
+    end_date: endDate,
+    timezone,
+  });
+
   const campaign = await model.saveCampaign(adId, userId, {
     daily_budget: paymentSummary.daily_budget,
     total_budget: paymentSummary.actual_campaign_budget,
@@ -198,7 +298,7 @@ const saveCampaign = async (adId, userId, data) => {
     start_date: startDate,
     end_date: endDate,
     timezone,
-  });
+  }, schedule);
 
   return {
     campaign,
@@ -226,61 +326,15 @@ const getCampaignEstimation = async (adId, userId) => {
 const publishCampaign = async (adId, userId) => {
   const campaign = await model.getDraftCampaignForPublish(adId, userId);
   const timezone = validateTimezone(campaign.timezone);
-  const now = DateTime.now().setZone(timezone);
-  const today = now.toISODate();
-
-  let startDate;
-  let endDate;
-  let startTimestamp;
-  let endTimestamp;
-  let campaignStatus;
-
-  if (campaign.duration_type === "days") {
-    const durationDays = Number(campaign.duration_days);
-    if (!Number.isInteger(durationDays) || durationDays < 1) throw createError("Invalid campaign duration.", 400);
-    const endLocalDate = now.startOf("day").plus({ days: durationDays });
-    const end = localDateTimeToUtc(endLocalDate.year, endLocalDate.month, endLocalDate.day,
-      now.hour, now.minute, now.second, timezone);
-    startDate = today;
-    endDate = endLocalDate.toISODate();
-    startTimestamp = Math.floor(now.toUTC().toSeconds());
-    endTimestamp = Math.floor(end.toSeconds());
-    campaignStatus = "active";
-  } else if (campaign.duration_type === "custom_date") {
-    const selectedStartDate = campaign.selected_start_date;
-    const selectedEndDate = campaign.selected_end_date;
-    if (!selectedStartDate || !selectedEndDate) throw createError("Custom campaign start and end dates are required.", 400);
-    parseDate(selectedStartDate);
-    parseDate(selectedEndDate);
-    if (selectedStartDate < today) throw createError("Campaign start date cannot be in the past.", 400);
-    if (selectedEndDate < selectedStartDate) throw createError("Campaign end date must be on or after its start date.", 400);
-
-    if (selectedStartDate === today) {
-      if (getDateDifference(selectedStartDate, selectedEndDate) < 1) {
-        throw createError("For a custom campaign starting today, select an end date after today.", 400);
-      }
-      const end = localDateToUtc(selectedEndDate, now.hour, now.minute, now.second, timezone);
-      startDate = selectedStartDate;
-      endDate = selectedEndDate;
-      startTimestamp = Math.floor(now.toUTC().toSeconds());
-      endTimestamp = Math.floor(end.toSeconds());
-      campaignStatus = "active";
-    } else {
-      const start = localDateToUtc(selectedStartDate, 0, 0, 0, timezone);
-      const end = localDateToUtc(selectedEndDate, 23, 59, 59, timezone);
-      startDate = selectedStartDate;
-      endDate = selectedEndDate;
-      startTimestamp = Math.floor(start.toSeconds());
-      endTimestamp = Math.floor(end.toSeconds());
-      campaignStatus = "draft";
-    }
-  } else {
-    throw createError("Invalid campaign duration type.", 400);
-  }
-
-  const result = await model.publishCampaign(adId, userId, {
-    startDate, endDate, startTimestamp, endTimestamp, campaignStatus,
+  const schedule = buildCampaignSchedule({
+    duration_type: campaign.duration_type,
+    duration_days: campaign.duration_days,
+    start_date: campaign.selected_start_date,
+    end_date: campaign.selected_end_date,
+    timezone,
   });
+
+  const result = await model.publishCampaign(adId, userId, schedule);
   return { ...result, timezone, timestamps_timezone: "UTC" };
 };
 

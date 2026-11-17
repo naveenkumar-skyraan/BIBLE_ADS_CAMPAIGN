@@ -139,7 +139,10 @@ const resolveBusinessCurrency = async (userId, businessId = null) => {
 };
 
 const createTopupOrder = async (userId, amount) => {
-  const currencyCode = assertCashfreeCurrencyEnabled(businessCurrency.currency_code);
+  const businessCurrency = await resolveBusinessCurrency(userId);
+  const currencyCode = assertCashfreeCurrencyEnabled(
+    businessCurrency.currency_code,
+  );
   const normalizedAmount = normalizeMoneyAmount(amount, currencyCode, { min: 1 });
   const currency = getCurrencyMetadata(currencyCode);
   const wallet = await getOrCreateWallet(userId, currencyCode);

@@ -14,7 +14,7 @@ import {
   getAdController,
   updateAdController,
   getMyAdsController,
-  pauseAdController,
+  pauseAdController, 
   resumeAdController,
   cancelAdController,
   submitAdForReviewController,
@@ -100,6 +100,22 @@ const router = express.Router();
  *           type: string
  *           enum: [draft, active, paused, completed, under_verify]
  *           example: draft
+ *         last_completed_step:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 3
+ *           example: 2
+ *           description: Highest wizard step successfully saved (1=ad submission, 2=location, 3=campaign).
+ *         resume_step:
+ *           type: integer
+ *           minimum: 2
+ *           maximum: 3
+ *           example: 3
+ *           description: Next incomplete step, capped at step 3; completed step 3 resumes at step 3.
+ *         is_scheduled:
+ *           type: boolean
+ *           example: false
+ *           description: True when the ad is a future-scheduled draft with campaign pricing snapshots.
  *         moderation_status:
  *           type: string
  *           enum: [none, blocked, under_review]
@@ -526,8 +542,13 @@ router.put("/:id", middleware, adUpload.single("media"), updateAdController);
  * @swagger
  * /api/ads/{id}/campaign:
  *   put:
- *     summary: Save campaign budget and duration
- *     description: Saves campaign budget and duration for the selected advertisement.
+ *     summary: Save or update campaign budget and duration
+ *     description: >
+ *       Saves campaign budget and duration for an unpublished draft. For a
+ *       future scheduled draft ad, this endpoint applies the updated schedule,
+ *       refreshes pricing snapshots, and validates the wallet commitment in
+ *       the same transaction. The scheduled campaign remains editable until
+ *       its scheduled start time.
  *     tags: [Ads]
  *     security:
  *       - bearerAuth: []

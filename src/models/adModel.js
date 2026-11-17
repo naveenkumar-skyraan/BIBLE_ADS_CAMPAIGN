@@ -93,6 +93,20 @@ export const getAdById = async (adId, userId) => {
             a.destination_link,
             a.platform,
             a.status,
+            a.last_completed_step,
+            LEAST(a.last_completed_step + 1, 3) AS resume_step,
+            CASE
+              WHEN a.status = 'draft'
+                AND c.status = 'draft'
+                AND c.start_timestamp > UNIX_TIMESTAMP()
+                AND c.end_timestamp >= UNIX_TIMESTAMP()
+                AND EXISTS (
+                  SELECT 1
+                  FROM ad_campaign_pricing cp
+                  WHERE cp.campaign_id = c.id
+                )
+              THEN 1 ELSE 0
+            END AS is_scheduled,
             a.created_at,
             a.updated_at,
             m.id AS media_id,
@@ -102,6 +116,10 @@ export const getAdById = async (adId, userId) => {
             m.mime_type,
             m.file_size
         FROM ads a
+        LEFT JOIN ad_campaigns c
+            ON c.id = a.campaign_id
+            AND c.user_id = a.user_id
+            AND c.is_deleted = 0
         LEFT JOIN ad_media m
             ON m.ad_id = a.id
             AND m.is_active = 1
@@ -122,7 +140,11 @@ LIMIT 1`,
     [adId, userId],
   );
 
-  return rows[0] ?? null;
+  if (!rows[0]) return null;
+  return {
+    ...rows[0],
+    is_scheduled: Boolean(rows[0].is_scheduled),
+  };
 };
 
 export const updateAd = async (adId, userId, data, fileData = null) => {
@@ -335,6 +357,20 @@ export const getMyAds = async (userId, { status, search, limit, offset }) => {
         a.destination_link,
         a.platform,
         a.status AS ad_status,
+        a.last_completed_step,
+        LEAST(a.last_completed_step + 1, 3) AS resume_step,
+        CASE
+          WHEN a.status = 'draft'
+            AND c.status = 'draft'
+            AND c.start_timestamp > UNIX_TIMESTAMP()
+            AND c.end_timestamp >= UNIX_TIMESTAMP()
+            AND EXISTS (
+              SELECT 1
+              FROM ad_campaign_pricing cp
+              WHERE cp.campaign_id = c.id
+            )
+          THEN 1 ELSE 0
+        END AS is_scheduled,
         a.moderation_status,
         a.created_at,
         a.updated_at,
@@ -376,7 +412,10 @@ export const getMyAds = async (userId, { status, search, limit, offset }) => {
 
   return {
     total: Number(countRows[0].total),
-    ads: rows,
+    ads: rows.map((row) => ({
+      ...row,
+      is_scheduled: Boolean(row.is_scheduled),
+    })),
   };
 };
 

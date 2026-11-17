@@ -1,4 +1,3 @@
-
 import walletValidator from "../validators/walletValidator.js";
 
 import {
@@ -44,12 +43,18 @@ const statusCodes = {
 };
 
 const handleError = (res, error) => {
+  console.error("Wallet API Error:", {
+    code: error.code,
+    message: error.message,
+    status: error.status,
+    details: error.details,
+    stack: error.stack,
+  });
+
   return res.status(statusCodes[error.code] || 500).json({
     success: false,
     code: error.code,
-    message: statusCodes[error.code]
-      ? error.message
-      : "Internal server error",
+    message: statusCodes[error.code] ? error.message : "Internal server error",
   });
 };
 
@@ -69,10 +74,7 @@ const getWalletController = async (req, res) => {
 
 const createTopupController = async (req, res) => {
   try {
-    const { error, value } = validate(
-      walletValidator.createTopup,
-      req.body,
-    );
+    const { error, value } = validate(walletValidator.createTopup, req.body);
 
     if (error) {
       return res.status(400).json({
@@ -82,10 +84,7 @@ const createTopupController = async (req, res) => {
       });
     }
 
-    const data = await createTopupOrder(
-      req.user.id,
-      value.amount,
-    );
+    const data = await createTopupOrder(req.user.id, value.amount);
 
     return res.status(201).json({
       success: true,
@@ -99,10 +98,7 @@ const createTopupController = async (req, res) => {
 
 const verifyTopupController = async (req, res) => {
   try {
-    const { error, value } = validate(
-      walletValidator.verifyTopup,
-      req.body,
-    );
+    const { error, value } = validate(walletValidator.verifyTopup, req.body);
 
     if (error) {
       return res.status(400).json({
@@ -112,10 +108,7 @@ const verifyTopupController = async (req, res) => {
       });
     }
 
-    const data = await verifyCashfreePayment(
-      req.user.id,
-      value.order_id,
-    );
+    const data = await verifyCashfreePayment(req.user.id, value.order_id);
 
     return res.status(200).json({
       success: true,
@@ -129,9 +122,7 @@ const verifyTopupController = async (req, res) => {
 
 const cashfreeWebhookController = async (req, res) => {
   try {
-    const rawBody = req.rawBody
-      ? req.rawBody.toString()
-      : "";
+    const rawBody = req.rawBody ? req.rawBody.toString() : "";
 
     const data = await processWebhook(
       rawBody,
@@ -184,10 +175,7 @@ const getTransactionsController = async (req, res) => {
 
 const getTransactionController = async (req, res) => {
   try {
-    const { error, value } = validate(
-      walletValidator.getTransaction,
-      req.body,
-    );
+    const { error, value } = validate(walletValidator.getTransaction, req.body);
 
     if (error) {
       return res.status(400).json({
