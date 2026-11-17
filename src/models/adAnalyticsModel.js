@@ -463,7 +463,12 @@ export const processAdAnalyticsBatch = async (payload) => {
 
             cp.currency_code,
             cp.cpm_rate,
-            cp.cpc_rate
+            cp.cpc_rate,
+            cp.campaign_timezone AS pricing_timezone,
+            cp.daily_budget AS pricing_daily_budget,
+            cp.campaign_start_timestamp AS pricing_start_timestamp,
+            cp.campaign_end_timestamp AS pricing_end_timestamp,
+            cp.business_id AS pricing_business_id
 
           FROM ads a
 
@@ -483,7 +488,11 @@ export const processAdAnalyticsBatch = async (payload) => {
             ON cp.campaign_id = c.id
             AND cp.ad_id = a.id
             AND cp.platform = ?
-            AND cp.currency_code = c.currency_code
+            AND cp.effective_from_timestamp <= ?
+            AND (
+              cp.effective_until_timestamp IS NULL
+              OR cp.effective_until_timestamp >= ?
+            )
 
           INNER JOIN wallet_balances wb
             ON wb.wallet_id = w.id
@@ -493,7 +502,7 @@ export const processAdAnalyticsBatch = async (payload) => {
           LIMIT 1
           FOR UPDATE
         `,
-        [payload.platform, item.ad_id],
+        [payload.platform, payload.interval_start, payload.interval_end, item.ad_id],
       );
 
       if (adRows.length === 0) {
@@ -551,7 +560,7 @@ export const processAdAnalyticsBatch = async (payload) => {
           WHERE ad_id = ?
             AND user_id = ?
             AND event_type IN ('blocked', 'approved')
-          ORDER BY id ASC
+          ORDER BY id DESC
         `,
         [item.ad_id, ad.user_id],
       );
@@ -611,10 +620,10 @@ export const processAdAnalyticsBatch = async (payload) => {
       }
 
       if (
-        !ad.start_timestamp ||
-        !ad.end_timestamp ||
-        Number(payload.interval_start) < Number(ad.start_timestamp) ||
-        Number(payload.interval_end) - 1 > Number(ad.end_timestamp)
+        !ad.pricing_start_timestamp ||
+        !ad.pricing_end_timestamp ||
+        Number(payload.interval_start) < Number(ad.pricing_start_timestamp) ||
+        Number(payload.interval_end) - 1 > Number(ad.pricing_end_timestamp)
       ) {
         throw createError(
           `Analytics interval for ad ${item.ad_id} is outside its campaign schedule.`,
@@ -675,7 +684,7 @@ export const processAdAnalyticsBatch = async (payload) => {
       const localDate = getCampaignLocalDate(
         payload.interval_start,
         payload.interval_end,
-        ad.timezone,
+        ad.pricing_timezone,
       );
 
       const [overlappingIntervals] = await connection.execute(
@@ -714,13 +723,6 @@ export const processAdAnalyticsBatch = async (payload) => {
       const walletId = Number(ad.wallet_id);
       const campaignId = Number(ad.campaign_id);
       const walletKey = `${walletId}:${ad.currency_code}`;
-      if (ad.currency_code !== ad.campaign_currency_code) {
-        throw createError(
-          `Campaign ${campaignId} pricing currency does not match its campaign currency.`,
-          409,
-        );
-      }
-
       const walletBefore = walletBalances.has(walletKey)
         ? walletBalances.get(walletKey)
         : decimalToMicros(ad.wallet_balance);
@@ -758,7 +760,7 @@ export const processAdAnalyticsBatch = async (payload) => {
       const lifetimeSpent = decimalToMicros(lifetimeRows[0].spent);
 
       const dailyBudget =
-        ad.daily_budget === null ? null : decimalToMicros(ad.daily_budget);
+        ad.pricing_daily_budget === null ? null : decimalToMicros(ad.pricing_daily_budget);
 
       const totalBudget = decimalToMicros(ad.total_budget);
 
@@ -768,7 +770,7 @@ export const processAdAnalyticsBatch = async (payload) => {
         lifetimeSpent + pendingLifetime + charges.totalMicros;
 
       if (dailyBudget !== null && dailyTotalAfter > dailyBudget) {
-        const resumeAt = getNextLocalMidnight(localDate, ad.timezone);
+        const resumeAt = getNextLocalMidnight(localDate, ad.pricing_timezone);
 
         if (!adIsDeleted) {
           await pauseCampaign(connection, {
@@ -954,7 +956,7 @@ export const processAdAnalyticsBatch = async (payload) => {
           payload.platform,
           prepared.ad_id,
           ad.campaign_id,
-          ad.business_id,
+          ad.pricing_business_id,
           ad.user_id,
           ad.wallet_id,
           payload.interval_start,
@@ -1055,7 +1057,7 @@ export const processAdAnalyticsBatch = async (payload) => {
           [
             ad.wallet_id,
             ad.user_id,
-            ad.business_id,
+            ad.pricing_business_id,
             ad.campaign_id,
             microsToDecimal(charges.walletDebitMicros),
             ad.currency_code,
@@ -1111,10 +1113,10 @@ export const processAdAnalyticsBatch = async (payload) => {
           ad.campaign_id,
           prepared.ad_id,
           ad.user_id,
-          ad.business_id,
+          ad.pricing_business_id,
           ad.wallet_id,
           payload.platform,
-          ad.timezone,
+          ad.pricing_timezone,
           localDate,
           ad.currency_code,
           prepared.impressions,
@@ -1139,15 +1141,15 @@ export const processAdAnalyticsBatch = async (payload) => {
             Number(payload.interval_end),
           );
         } else if (
-          ad.daily_budget !== null &&
-          prepared.dailyTotalAfter >= decimalToMicros(ad.daily_budget)
+          ad.pricing_daily_budget !== null &&
+          prepared.dailyTotalAfter >= decimalToMicros(ad.pricing_daily_budget)
         ) {
           await pauseCampaign(connection, {
             campaignId: ad.campaign_id,
             adId: prepared.ad_id,
             reason: "daily_budget",
             pausedAt: Number(payload.interval_end),
-            resumeAt: getNextLocalMidnight(localDate, ad.timezone),
+            resumeAt: getNextLocalMidnight(localDate, ad.pricing_timezone),
           });
         }
       }

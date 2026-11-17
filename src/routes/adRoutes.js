@@ -1,4 +1,3 @@
-
 import express from "express";
 
 import { middleware } from "../middleware/authMiddleware.js";
@@ -12,9 +11,10 @@ import { submitAdAnalyticsBatchController } from "../controllers/adAnalyticsCont
 import {
   createAdController,
   getAdController,
+  getAdDetailsController,
   updateAdController,
   getMyAdsController,
-  pauseAdController, 
+  pauseAdController,
   resumeAdController,
   cancelAdController,
   submitAdForReviewController,
@@ -452,16 +452,45 @@ router.post(
  *       500:
  *         description: Internal server error.
  */
+/**
+ * @swagger
+ * /api/ads/{id}/details:
+ *   get:
+ *     summary: Get complete My Ads campaign details
+ *     description: Dedicated details endpoint for the Campaign Details screen. This is separate from GET /api/ads/{id}, which remains the Step 1 wizard retrieval endpoint.
+ *     tags: [Ads]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [this_month, last_month, all_time]
+ *           default: this_month
+ *     responses:
+ *       200:
+ *         description: Ad, campaign, location and performance details.
+ *       404:
+ *         description: Advertisement not found.
+ */
+router.get("/:id/details", middleware, getAdDetailsController);
+
 router.get("/:id", middleware, getAdController);
 
 /**
  * @swagger
  * /api/ads/{id}:
  *   put:
- *     summary: Update a draft advertisement
+ *     summary: Update an editable advertisement
  *     description: >
- *       Updates the supplied ad fields. If a new media file is provided,
- *       it replaces the currently active media. Only draft ads can be updated.
+ *       Updates draft, active or paused ads. The existing ad status is preserved.
+ *       Ad type is immutable after creation; subtype changes must belong to the existing ad type.
+ *       If a new media file is provided, it replaces the currently active media.
  *     tags: [Ads]
  *     security:
  *       - bearerAuth: []
@@ -493,9 +522,6 @@ router.get("/:id", middleware, getAdController);
  *                 type: string
  *                 maxLength: 500
  *                 example: Updated advertisement description.
- *               ad_type_id:
- *                 type: integer
- *                 example: 1
  *               ad_subtype_id:
  *                 type: integer
  *                 nullable: true
@@ -518,7 +544,7 @@ router.get("/:id", middleware, getAdController);
  *                 description: Optional replacement image or video; maximum 500 MB.
  *     responses:
  *       200:
- *         description: Draft ad updated successfully.
+ *         description: Advertisement updated successfully.
  *         content:
  *           application/json:
  *             schema:
@@ -532,7 +558,7 @@ router.get("/:id", middleware, getAdController);
  *       401:
  *         description: Missing, invalid, or expired access token.
  *       404:
- *         description: Draft ad not found or not owned by the authenticated user.
+ *         description: Ad not found, not owned by the user, or not in an editable status.
  *       500:
  *         description: Internal server error.
  */
@@ -702,19 +728,22 @@ router.put("/:id", middleware, adUpload.single("media"), updateAdController);
  *       500:
  *         description: Internal server error.
  */
-router.get("/:id/campaign", middleware, adCampaignController.getCampaignDetails);
+router.get(
+  "/:id/campaign",
+  middleware,
+  adCampaignController.getCampaignDetails,
+);
 
 /**
  * @swagger
  * /api/ads/{id}/campaign:
  *   put:
- *     summary: Save or update campaign budget and duration
+ *     summary: Save or update campaign budget and duration for draft, active or paused campaigns
  *     description: >
- *       Saves campaign budget and duration for an unpublished draft. For a
- *       future scheduled draft ad, this endpoint applies the updated schedule,
- *       refreshes pricing snapshots, and validates the wallet commitment in
- *       the same transaction. The scheduled campaign remains editable until
- *       its scheduled start time.
+ *       Saves campaign budget and duration for draft, active and paused ads.
+ *       Active and paused edits preserve the current status, validate the remaining
+ *       unspent budget against wallet commitments, and create a new effective pricing
+ *       snapshot without changing rates used by previously submitted analytics.
  *     tags: [Ads]
  *     security:
  *       - bearerAuth: []
@@ -776,13 +805,13 @@ router.put("/:id/campaign", middleware, adCampaignController.saveCampaign);
  * @swagger
  * /api/ads/{id}/campaign/publish:
  *   post:
- *     summary: Publish a draft campaign
+ *     summary: Publish a draft campaign or confirm updated published campaign settings
  *     description: >
- *       Publishes a saved campaign. Generates exact start and end timestamps
- *       using the configured campaign timezone. Future custom-date campaigns
- *       remain in draft status until their scheduled start time.
- *       Publishing validates the global wallet against the remaining
- *       commitments of all previously published campaigns for the same user.
+ *       Publishes a saved draft campaign, or validates and confirms updated settings
+ *       for an existing active or paused campaign. Active and paused campaigns retain
+ *       their current status. Future custom-date draft campaigns remain in draft
+ *       status until their scheduled start time. Wallet commitments are validated
+ *       transactionally.
  *     tags: [Ads]
  *     security:
  *       - bearerAuth: []
@@ -803,7 +832,7 @@ router.put("/:id/campaign", middleware, adCampaignController.saveCampaign);
  *       404:
  *         description: Draft campaign, advertisement, or wallet not found.
  *       409:
- *         description: Campaign has already been scheduled or published.
+ *         description: Ad and campaign statuses do not match, or the campaign is not editable.
  *       500:
  *         description: Internal server error.
  */

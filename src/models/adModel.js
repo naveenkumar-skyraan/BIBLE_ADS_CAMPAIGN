@@ -1,4 +1,5 @@
 import db from "../configs/database/db.js";
+import { DateTime } from "luxon";
 import { decimalToMicros, microsToDecimal } from "../utils/adSpendCalculator.js";
 import { getWalletCommitmentSummary } from "../utils/campaignWalletFunding.js";
 
@@ -158,7 +159,8 @@ export const updateAd = async (adId, userId, data, fileData = null) => {
              FROM ads
             WHERE id = ?
   AND user_id = ?
-  AND status = 'draft'
+  AND status IN ('draft', 'active', 'paused')
+  AND moderation_status <> 'under_review'
   AND is_deleted = 0
 LIMIT 1
 FOR UPDATE`,
@@ -178,7 +180,6 @@ FOR UPDATE`,
       "objective_id",
       "title",
       "description",
-      "ad_type_id",
       "ad_subtype_id",
       "action_button_type_id",
       "destination_link",
@@ -244,6 +245,191 @@ FOR UPDATE`,
   }
 };
 
+export const getAdDetailsForView = async (adId, userId, period = "this_month") => {
+  if (!["this_month", "last_month", "all_time"].includes(period)) {
+    throw createError("Invalid performance period.", 400);
+  }
+  const [timezoneRows] = await db.execute(
+    `SELECT c.timezone
+     FROM ads a LEFT JOIN ad_campaigns c ON c.id = a.campaign_id AND c.user_id = a.user_id
+     WHERE a.id = ? AND a.user_id = ? AND a.is_deleted = 0 LIMIT 1`,
+    [adId, userId],
+  );
+  if (!timezoneRows.length) return null;
+  const zone = timezoneRows[0].timezone || "UTC";
+  const now = DateTime.now().setZone(zone);
+  let performanceWhere = "1 = 1";
+  const performanceValues = [];
+  if (period === "this_month") {
+    performanceWhere = "ds.campaign_local_date BETWEEN ? AND ?";
+    performanceValues.push(now.startOf("month").toISODate(), now.toISODate());
+  } else if (period === "last_month") {
+    performanceWhere = "ds.campaign_local_date BETWEEN ? AND ?";
+    performanceValues.push(
+      now.minus({ months: 1 }).startOf("month").toISODate(),
+      now.startOf("month").minus({ days: 1 }).toISODate(),
+    );
+  }
+
+  const [rows] = await db.execute(
+    `
+      SELECT
+        a.id AS ad_id,
+        a.campaign_id,
+        a.user_id,
+        a.business_id,
+        bd.business_name,
+        a.objective_id,
+        ao.name AS objective_name,
+        a.ad_type_id,
+        at.name AS ad_type_name,
+        a.ad_subtype_id,
+        ast.name AS ad_subtype_name,
+        a.title,
+        a.description,
+        a.action_button_type_id,
+        abt.name AS action_button_name,
+        a.destination_link,
+        a.platform,
+        a.status AS ad_status,
+        a.moderation_status,
+        a.created_at AS ad_created_at,
+        a.updated_at AS ad_updated_at,
+        m.id AS media_id,
+        m.media_type,
+        m.file_url,
+        m.file_name,
+        m.mime_type,
+        m.file_size,
+        c.status AS campaign_status,
+        c.currency_code,
+        c.total_budget,
+        c.daily_budget,
+        c.duration_type,
+        c.duration_days,
+        DATE_FORMAT(c.start_date, '%Y-%m-%d') AS start_date,
+        DATE_FORMAT(c.end_date, '%Y-%m-%d') AS end_date,
+        c.start_timestamp,
+        c.end_timestamp,
+        c.timezone,
+        c.created_at AS campaign_created_at,
+        lt.location_name,
+        lt.place_id,
+        lt.latitude,
+        lt.longitude,
+        lt.timezone AS location_timezone,
+        lt.is_radius_enabled,
+        lt.radius_km,
+        COALESCE(perf.impressions, 0) AS impressions,
+        COALESCE(perf.clicks, 0) AS clicks,
+        COALESCE(perf.total_spend, 0) AS spend
+      FROM ads a
+      INNER JOIN business_details bd
+        ON bd.id = a.business_id AND bd.user_id = a.user_id AND bd.is_deleted = 0
+      LEFT JOIN ad_objectives ao ON ao.id = a.objective_id
+      LEFT JOIN ad_types at ON at.id = a.ad_type_id
+      LEFT JOIN ad_subtypes ast ON ast.id = a.ad_subtype_id
+      LEFT JOIN ad_action_button_types abt ON abt.id = a.action_button_type_id
+      LEFT JOIN ad_media m ON m.ad_id = a.id AND m.is_active = 1
+      LEFT JOIN ad_campaigns c
+        ON c.id = a.campaign_id AND c.user_id = a.user_id AND c.is_deleted = 0
+      LEFT JOIN ad_location_targets lt ON lt.ad_id = a.id
+      LEFT JOIN (
+        SELECT campaign_id,
+               SUM(impressions) AS impressions,
+               SUM(clicks) AS clicks,
+               SUM(CASE
+                 WHEN ds.currency_code = (
+                   SELECT c2.currency_code FROM ad_campaigns c2
+                   WHERE c2.id = ds.campaign_id LIMIT 1
+                 )
+                 THEN total_charge ELSE 0
+               END) AS total_spend
+        FROM ad_campaign_daily_spend ds
+        WHERE ${performanceWhere}
+        GROUP BY campaign_id
+      ) perf ON perf.campaign_id = c.id
+      WHERE a.id = ? AND a.user_id = ? AND a.is_deleted = 0
+      LIMIT 1
+    `,
+    [...performanceValues, adId, userId],
+  );
+  if (!rows.length) return null;
+  const row = rows[0];
+  const spendByCurrency = row.campaign_id
+    ? (await db.execute(
+        `SELECT currency_code, SUM(total_charge) AS spend
+         FROM ad_campaign_daily_spend ds
+         WHERE campaign_id = ? AND ${performanceWhere}
+         GROUP BY currency_code`,
+        [...performanceValues, row.campaign_id],
+      ))[0].map((item) => ({
+        currency_code: item.currency_code,
+        spend: String(item.spend),
+      }))
+    : [];
+  return {
+    ad: {
+      id: row.ad_id,
+      campaign_id: row.campaign_id,
+      business_id: row.business_id,
+      business_name: row.business_name,
+      objective_id: row.objective_id,
+      objective_name: row.objective_name,
+      ad_type_id: row.ad_type_id,
+      ad_type_name: row.ad_type_name,
+      ad_subtype_id: row.ad_subtype_id,
+      ad_subtype_name: row.ad_subtype_name,
+      title: row.title,
+      description: row.description,
+      action_button_type_id: row.action_button_type_id,
+      action_button_name: row.action_button_name,
+      destination_link: row.destination_link,
+      platform: row.platform,
+      status: row.ad_status,
+      moderation_status: row.moderation_status,
+      created_at: row.ad_created_at,
+      updated_at: row.ad_updated_at,
+      media: row.media_id ? {
+        id: row.media_id, type: row.media_type, url: row.file_url,
+        file_name: row.file_name, mime_type: row.mime_type, file_size: row.file_size,
+      } : null,
+    },
+    campaign: row.campaign_id ? {
+      id: row.campaign_id,
+      status: row.campaign_status,
+      currency_code: row.currency_code,
+      total_budget: row.total_budget,
+      daily_budget: row.daily_budget,
+      duration_type: row.duration_type,
+      duration_days: row.duration_days,
+      start_date: row.start_date,
+      end_date: row.end_date,
+      start_timestamp: row.start_timestamp,
+      end_timestamp: row.end_timestamp,
+      timezone: row.timezone,
+      created_at: row.campaign_created_at,
+    } : null,
+    location: row.location_name ? {
+      location_name: row.location_name,
+      place_id: row.place_id,
+      latitude: Number(row.latitude),
+      longitude: Number(row.longitude),
+      timezone: row.location_timezone,
+      is_radius_enabled: Boolean(row.is_radius_enabled),
+      radius_km: row.radius_km === null ? null : Number(row.radius_km),
+    } : null,
+    performance: {
+      period,
+      impressions: Number(row.impressions),
+      clicks: Number(row.clicks),
+      spend: String(row.spend),
+      currency_code: row.currency_code ?? null,
+      spend_by_currency: spendByCurrency,
+    },
+  };
+};
+
 export const getAdEstimationInputs = async (adId, userId) => {
   const [rows] = await db.execute(
     `
@@ -254,6 +440,7 @@ export const getAdEstimationInputs = async (adId, userId) => {
         a.ad_subtype_id,
         a.platform,
         a.business_id,
+        a.status,
         bd.country_code,
         bd.admin_area_1,
         bd.city,
@@ -287,7 +474,8 @@ export const getAdTypeInfoForUpdate = async (adId, userId) => {
      WHERE id = ?
        AND user_id = ?
        AND is_deleted = 0
-       AND status = 'draft'
+       AND status IN ('draft', 'active', 'paused')
+       AND moderation_status <> 'under_review'
      LIMIT 1`,
     [adId, userId],
   );
@@ -809,7 +997,7 @@ export const getAdModerationHistory = async (adId, userId) => {
       FROM ad_moderation_history
       WHERE ad_id = ?
         AND user_id = ?
-      ORDER BY id ASC
+      ORDER BY id DESC
     `,
     [adId, userId],
   );

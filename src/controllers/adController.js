@@ -112,11 +112,28 @@ export const updateAdController = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Draft ad updated successfully.",
+      message: "Advertisement updated successfully.",
       data,
     });
   } catch (error) {
     await removeUploadedFile(req.file);
+    return handleError(res, error);
+  }
+};
+
+export const getAdDetailsController = async (req, res) => {
+  try {
+    const data = await service.getAdDetails(
+      req.params.id,
+      req.user.id,
+      req.query.period || "this_month",
+    );
+    return res.status(200).json({
+      success: true,
+      message: "Ad campaign details retrieved successfully.",
+      data,
+    });
+  } catch (error) {
     return handleError(res, error);
   }
 };

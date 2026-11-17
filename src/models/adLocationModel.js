@@ -14,6 +14,7 @@ export const saveTarget = async (adId, userId, data) => {
        WHERE id = ?
          AND user_id = ?
          AND status IN ('draft', 'active', 'paused')
+         AND moderation_status <> 'under_review'
          AND is_deleted = 0
        LIMIT 1
        FOR UPDATE`,

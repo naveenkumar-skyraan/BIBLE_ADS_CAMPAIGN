@@ -131,7 +131,7 @@ export const getModerationQueue = async ({ limit, offset, search }) => {
 
       WHERE ${whereClause}
 
-      ORDER BY h.created_at ASC, a.id ASC
+      ORDER BY h.created_at DESC, a.id DESC
       LIMIT ? OFFSET ?
     `,
     [...values, limit, offset],
@@ -235,7 +235,7 @@ export const getModerationDetails = async (adId) => {
       FROM ad_moderation_history
       WHERE ad_id = ?
         AND user_id = ?
-      ORDER BY id ASC
+      ORDER BY id DESC
     `,
     [adId, ads[0].user_id],
   );

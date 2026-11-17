@@ -239,7 +239,8 @@ const saveCampaign = async (adId, userId, data) => {
   if (!wallet) throw createError("Wallet not found. Please add funds first.", 404);
 
   const availableBalanceMicros = decimalToMicros(wallet.balance || 0);
-  if (availableBalanceMicros < dailyBudgetMicros) {
+  const isPublishedEditableCampaign = ["active", "paused"].includes(ad.status);
+  if (!isPublishedEditableCampaign && availableBalanceMicros < dailyBudgetMicros) {
     throw createError("Daily budget cannot exceed the available wallet balance.", 400, {
       currency: currency.currency_code,
       available_balance: microsToDecimal(availableBalanceMicros),
@@ -271,7 +272,7 @@ const saveCampaign = async (adId, userId, data) => {
   paymentSummary.currency = currency.currency_code;
   paymentSummary.currency_symbol = currency.currency_symbol;
   const requiredMicros = decimalToMicros(paymentSummary.total_payable);
-  if (availableBalanceMicros < requiredMicros) {
+  if (!isPublishedEditableCampaign && availableBalanceMicros < requiredMicros) {
     const additional = requiredMicros - availableBalanceMicros;
     throw createError("Insufficient wallet balance. Please add funds before continuing.", 400, {
       currency: currency.currency_code,
@@ -381,13 +382,27 @@ const getCampaignEstimation = async (adId, userId) => {
 const publishCampaign = async (adId, userId) => {
   const campaign = await model.getDraftCampaignForPublish(adId, userId);
   const timezone = validateTimezone(campaign.timezone);
-  const schedule = buildCampaignSchedule({
-    duration_type: campaign.duration_type,
-    duration_days: campaign.duration_days,
-    start_date: campaign.selected_start_date,
-    end_date: campaign.selected_end_date,
-    timezone,
-  });
+  let schedule;
+
+  if (["active", "paused"].includes(campaign.ad_status)) {
+    // Re-saving an already published campaign must not rebuild its schedule
+    // from past dates or change its active/paused state.
+    schedule = {
+      startDate: campaign.selected_start_date,
+      endDate: campaign.selected_end_date,
+      startTimestamp: Number(campaign.start_timestamp),
+      endTimestamp: Number(campaign.end_timestamp),
+      campaignStatus: campaign.campaign_status,
+    };
+  } else {
+    schedule = buildCampaignSchedule({
+      duration_type: campaign.duration_type,
+      duration_days: campaign.duration_days,
+      start_date: campaign.selected_start_date,
+      end_date: campaign.selected_end_date,
+      timezone,
+    });
+  }
 
   const result = await model.publishCampaign(adId, userId, schedule);
   return { ...result, timezone, timestamps_timezone: "UTC" };

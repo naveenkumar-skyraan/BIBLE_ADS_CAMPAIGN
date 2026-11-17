@@ -105,7 +105,9 @@ const adCampaignController = {
         message:
           result.ad_status === "draft"
             ? "Campaign scheduled successfully."
-            : "Campaign published successfully.",
+            : result.ad_status === "paused"
+              ? "Campaign changes saved successfully. The campaign remains paused."
+              : "Campaign published or updated successfully.",
         data: result,
       });
     } catch (error) {

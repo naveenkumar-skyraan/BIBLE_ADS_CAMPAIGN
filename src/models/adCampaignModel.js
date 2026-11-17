@@ -118,6 +118,7 @@ const saveCampaign = async (adId, userId, data, schedule = null) => {
         WHERE id = ?
           AND user_id = ?
           AND status IN ('draft', 'active', 'paused')
+          AND moderation_status <> 'under_review'
           AND is_deleted = 0
         LIMIT 1
         FOR UPDATE
@@ -144,6 +145,8 @@ const saveCampaign = async (adId, userId, data, schedule = null) => {
             status,
             start_timestamp,
             end_timestamp,
+            DATE_FORMAT(start_date, '%Y-%m-%d') AS start_date,
+            DATE_FORMAT(end_date, '%Y-%m-%d') AS end_date,
             (
               SELECT COUNT(*)
               FROM ad_campaign_pricing p
@@ -181,13 +184,6 @@ const saveCampaign = async (adId, userId, data, schedule = null) => {
         !existingCampaign.start_timestamp &&
         !existingCampaign.end_timestamp;
 
-      if (!isScheduledEdit && !isUnpublishedDraft) {
-        throw createError(
-          "Only an unpublished draft or a future scheduled draft campaign can be edited.",
-          409,
-        );
-      }
-
       if (isScheduledEdit && !schedule) {
         throw createError(
           "A valid replacement schedule is required to update this scheduled campaign.",
@@ -195,7 +191,165 @@ const saveCampaign = async (adId, userId, data, schedule = null) => {
         );
       }
 
-      if (isScheduledEdit) {
+      const isLiveCampaignEdit =
+        ["active", "paused"].includes(ad.status) &&
+        existingCampaign.status === ad.status &&
+        hasPricing;
+
+      if (!isScheduledEdit && !isUnpublishedDraft && !isLiveCampaignEdit) {
+        throw createError(
+          "Only draft, active or paused campaigns can be edited.",
+          409,
+        );
+      }
+
+      if (isLiveCampaignEdit) {
+        if (!schedule) {
+          throw createError("A valid replacement campaign schedule is required.", 400);
+        }
+        const now = Math.floor(Date.now() / 1000);
+        if (ad.status === "active" &&
+            (schedule.campaignStatus !== "active" || liveSchedule.startTimestamp > now || liveSchedule.endTimestamp < now)) {
+          throw createError("An active campaign must remain within an active campaign period. Pause it before scheduling a future start date.", 409);
+        }
+
+        const liveSchedule = {
+          ...schedule,
+          campaignStatus: ad.status,
+        };
+        const [walletRows] = await connection.execute(
+          `SELECT id FROM wallets WHERE user_id = ? LIMIT 1 FOR UPDATE`,
+          [userId],
+        );
+        if (!walletRows.length) throw createError("Wallet not found.", 404);
+        const wallet = walletRows[0];
+
+        await connection.execute(
+          `INSERT IGNORE INTO wallet_balances (wallet_id, currency_code, balance)
+           VALUES (?, ?, 0.000000)`,
+          [wallet.id, data.currency_code],
+        );
+        const [balanceRows] = await connection.execute(
+          `SELECT balance FROM wallet_balances
+           WHERE wallet_id = ? AND currency_code = ? FOR UPDATE`,
+          [wallet.id, data.currency_code],
+        );
+        if (!balanceRows.length) throw createError("Wallet currency balance not found.", 404);
+
+        const [spendRows] = await connection.execute(
+          `SELECT COALESCE(SUM(total_charge), 0) AS spent
+           FROM ad_campaign_daily_spend
+           WHERE campaign_id = ? AND currency_code = ?`,
+          [campaignId, data.currency_code],
+        );
+        const spentMicros = decimalToMicros(spendRows[0].spent || 0);
+        const newBudgetMicros = decimalToMicros(data.total_budget);
+        if (newBudgetMicros < spentMicros) {
+          throw createError(
+            "The updated campaign budget cannot be lower than the amount already spent.",
+            400,
+            {
+              spent_amount: Number(microsToDecimal(spentMicros)),
+              minimum_total_budget: Number(microsToDecimal(spentMicros)),
+              currency: data.currency_code,
+            },
+          );
+        }
+
+        const outstanding = await getWalletCommitmentSummary(
+          connection, userId, now, data.currency_code, campaignId,
+        );
+        const remainingBudgetMicros = newBudgetMicros - spentMicros;
+        const campaignPayable = calculateWalletPayableMicros(remainingBudgetMicros);
+        const requiredWalletMicros =
+          outstanding.committedPayableMicros + campaignPayable.payableMicros;
+        const availableWalletMicros = decimalToMicros(balanceRows[0].balance);
+        if (availableWalletMicros < requiredWalletMicros) {
+          throw createError(
+            "Insufficient wallet balance for the updated campaign budget and your other published campaigns.",
+            400,
+            {
+              available_balance: Number(microsToDecimal(availableWalletMicros)),
+              existing_campaign_commitment: Number(outstanding.committedPayable),
+              current_campaign_required: Number(microsToDecimal(campaignPayable.payableMicros)),
+              total_required: Number(microsToDecimal(requiredWalletMicros)),
+              additional_amount_required: Number(microsToDecimal(requiredWalletMicros - availableWalletMicros)),
+              currency: data.currency_code,
+            },
+          );
+        }
+
+        const [pricingAdRows] = await connection.execute(
+          `SELECT a.id, a.platform, a.objective_id, a.ad_type_id, a.ad_subtype_id,
+                  bd.country_code, bd.admin_area_1, bd.city
+           FROM ads a
+           INNER JOIN business_details bd
+             ON bd.id = a.business_id AND bd.user_id = a.user_id AND bd.is_deleted = 0
+           WHERE a.id = ? AND a.user_id = ? AND a.is_deleted = 0
+           LIMIT 1`,
+          [adId, userId],
+        );
+        if (!pricingAdRows.length) throw createError("Ad pricing details could not be retrieved.", 404);
+        const pricingAd = { ...pricingAdRows[0], currency_code: data.currency_code };
+        if (!["android", "ios", "both"].includes(pricingAd.platform)) {
+          throw createError("Invalid ad platform configuration.", 400);
+        }
+
+        const platforms = pricingAd.platform === "both" ? ["android", "ios"] : [pricingAd.platform];
+        const pricingRows = [];
+        for (const platform of platforms) {
+          const cpmRule = await getApplicablePricingRule(connection, "cpm", pricingAd, platform);
+          const cpcRule = await getApplicablePricingRule(connection, "cpc", pricingAd, platform);
+          if (cpmRule.currency_code !== data.currency_code || cpcRule.currency_code !== data.currency_code) {
+            throw createError(`CPM and CPC pricing currencies do not match for ${platform}.`, 400);
+          }
+          pricingRows.push({ platform, cpmRule, cpcRule });
+        }
+
+        // Close the previous pricing versions; historical analytics keep the
+        // exact rates that applied to their complete event interval.
+        await connection.execute(
+          `UPDATE ad_campaign_pricing
+           SET effective_until_timestamp = ?
+           WHERE campaign_id = ? AND effective_until_timestamp IS NULL`,
+          [now, campaignId],
+        );
+
+        for (const item of pricingRows) {
+          await connection.execute(
+            `INSERT INTO ad_campaign_pricing (
+              campaign_id, ad_id, platform, cpm_pricing_rule_id,
+              cpc_pricing_rule_id, currency_code, cpm_rate, cpc_rate,
+              effective_from_timestamp, effective_until_timestamp, campaign_timezone, daily_budget,
+              campaign_start_timestamp, campaign_end_timestamp, business_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)`,
+            [campaignId, adId, item.platform, item.cpmRule.id, item.cpcRule.id,
+             data.currency_code, item.cpmRule.rate, item.cpcRule.rate, now, timezone,
+             data.daily_budget, liveSchedule.startTimestamp, liveSchedule.endTimestamp, ad.business_id],
+          );
+        }
+
+        const [liveCampaignUpdate] = await connection.execute(
+          `UPDATE ad_campaigns
+           SET business_id = ?, currency_code = ?, budget_type = 'daily',
+               total_budget = ?, daily_budget = ?, duration_type = ?,
+               duration_days = ?, start_date = ?, end_date = ?,
+               start_timestamp = ?, end_timestamp = ?, timezone = ?,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = ? AND user_id = ? AND status = ? AND is_deleted = 0`,
+          [ad.business_id, data.currency_code, data.total_budget, data.daily_budget,
+           data.duration_type, data.duration_days, liveSchedule.startDate, liveSchedule.endDate,
+           liveSchedule.startTimestamp, liveSchedule.endTimestamp, timezone,
+           campaignId, userId, ad.status],
+        );
+        await connection.execute(
+          `UPDATE ads
+           SET last_completed_step = GREATEST(COALESCE(last_completed_step, 1), 3),
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = ? AND user_id = ? AND is_deleted = 0`,
+          [adId, userId],
+        );
+      } else if (isScheduledEdit) {
         // A scheduled ad is still a draft. Apply its new budget, dates,
         // pricing snapshots and wallet commitment atomically.
         const [walletRows] = await connection.execute(
@@ -395,9 +549,14 @@ const saveCampaign = async (adId, userId, data, schedule = null) => {
                 cpc_pricing_rule_id,
                 currency_code,
                 cpm_rate,
-                cpc_rate
+                cpc_rate,
+                campaign_timezone,
+                daily_budget,
+                campaign_start_timestamp,
+                campaign_end_timestamp,
+                business_id
               )
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `,
             [
               campaignId,
@@ -408,6 +567,11 @@ const saveCampaign = async (adId, userId, data, schedule = null) => {
               item.cpmRule.currency_code,
               item.cpmRule.rate,
               item.cpcRule.rate,
+              timezone,
+              data.daily_budget,
+              schedule.startTimestamp,
+              schedule.endTimestamp,
+              ad.business_id,
             ],
           );
         }
@@ -630,7 +794,7 @@ const getCampaignDetails = async (adId, userId) => {
         cpc_rate
       FROM ad_campaign_pricing
       WHERE campaign_id = ?
-      ORDER BY platform ASC, id ASC
+      ORDER BY platform DESC, id DESC
     `,
     [campaign.id],
   );
@@ -656,6 +820,8 @@ const getDraftCampaignForPublish = async (adId, userId) => {
         c.duration_days,
         DATE_FORMAT(c.start_date, '%Y-%m-%d') AS selected_start_date,
         DATE_FORMAT(c.end_date, '%Y-%m-%d') AS selected_end_date,
+        c.start_timestamp,
+        c.end_timestamp,
         c.timezone,
         c.status AS campaign_status
       FROM ads a
@@ -664,13 +830,16 @@ const getDraftCampaignForPublish = async (adId, userId) => {
         AND c.user_id = a.user_id
       WHERE a.id = ?
         AND a.user_id = ?
-        AND a.status = 'draft'
+        AND a.status IN ('draft', 'active', 'paused')
+        AND a.moderation_status <> 'under_review'
         AND a.is_deleted = 0
         AND c.user_id = ?
-        AND c.status = 'draft'
+        AND c.status IN ('draft', 'active', 'paused')
+        AND c.status = a.status
         AND c.is_deleted = 0
         AND (
-          NOT EXISTS (
+          a.status IN ('active', 'paused')
+          OR NOT EXISTS (
             SELECT 1
             FROM ad_campaign_pricing p
             WHERE p.campaign_id = c.id
@@ -691,7 +860,7 @@ const getDraftCampaignForPublish = async (adId, userId) => {
   );
 
   if (rows.length === 0) {
-    throw createError("Draft campaign not found.", 404);
+    throw createError("Editable campaign not found.", 404);
   }
 
   return rows[0];
@@ -728,7 +897,9 @@ const publishCampaign = async (
           bd.country_code,
           bd.admin_area_1,
           bd.city,
-          c.currency_code
+          c.currency_code,
+          c.timezone,
+          c.daily_budget
         FROM ads a
         INNER JOIN ad_campaigns c
           ON c.id = a.campaign_id
@@ -739,6 +910,7 @@ const publishCampaign = async (
           AND bd.is_deleted = 0
         WHERE a.id = ?
           AND a.user_id = ?
+          AND a.moderation_status <> 'under_review'
           AND a.is_deleted = 0
         LIMIT 1
         FOR UPDATE
@@ -746,8 +918,8 @@ const publishCampaign = async (
       [adId, userId],
     );
 
-    if (ads.length === 0 || ads[0].status !== "draft") {
-      throw createError("Draft ad not found or already published.", 404);
+    if (ads.length === 0 || !["draft", "active", "paused"].includes(ads[0].status)) {
+      throw createError("Editable ad not found.", 404);
     }
 
     const ad = ads[0];
@@ -770,8 +942,8 @@ const publishCampaign = async (
       [campaignId, userId],
     );
 
-    if (campaigns.length === 0 || campaigns[0].status !== "draft") {
-      throw createError("Draft campaign not found or already published.", 400);
+    if (campaigns.length === 0 || campaigns[0].status !== ad.status) {
+      throw createError("Ad and campaign statuses do not match or campaign is not editable.", 409);
     }
 
     const currency = getCurrencyForCountry(ad.country_code);
@@ -806,21 +978,19 @@ const publishCampaign = async (
 
     const nowTimestamp = Math.floor(Date.now() / 1000);
 
-    if (existingPricing.length > 0) {
+    const isPreviouslyPublished = ["active", "paused"].includes(ad.status);
+    if (existingPricing.length > 0 && !isPreviouslyPublished) {
       const isFutureScheduledCampaign =
         campaigns[0].status === "draft" &&
         Number(campaigns[0].start_timestamp) > nowTimestamp &&
         Number(campaigns[0].end_timestamp) >= nowTimestamp;
-
       if (!isFutureScheduledCampaign) {
         throw createError(
-          "Only a future scheduled draft campaign can have its schedule updated.",
+          "Only a future scheduled draft campaign can be republished with existing pricing snapshots.",
           409,
         );
       }
-
-      // Replacing pricing snapshots is safe before the campaign starts.
-      // The transaction keeps the old schedule intact if validation fails.
+      // Scheduled drafts have not delivered any impressions/clicks yet.
       await connection.execute(
         `DELETE FROM ad_campaign_pricing WHERE campaign_id = ?`,
         [campaignId],
@@ -834,7 +1004,20 @@ const publishCampaign = async (
       campaignId,
     );
     const campaignBudget = decimalToMicros(campaigns[0].total_budget);
-    const campaignPayable = calculateWalletPayableMicros(campaignBudget);
+    let campaignRemainingBudget = campaignBudget;
+    if (isPreviouslyPublished) {
+      const [spentRows] = await connection.execute(
+        `SELECT COALESCE(SUM(total_charge), 0) AS spent
+         FROM ad_campaign_daily_spend WHERE campaign_id = ?`,
+        [campaignId],
+      );
+      const spentMicros = decimalToMicros(spentRows[0].spent || 0);
+      if (campaignBudget < spentMicros) {
+        throw createError("Campaign budget cannot be lower than the amount already spent.", 400);
+      }
+      campaignRemainingBudget = campaignBudget - spentMicros;
+    }
+    const campaignPayable = calculateWalletPayableMicros(campaignRemainingBudget);
     const requiredWalletMicros =
       outstanding.committedPayableMicros + campaignPayable.payableMicros;
     const availableWalletMicros = decimalToMicros(walletBalance);
@@ -867,6 +1050,7 @@ const publishCampaign = async (
 
     const platforms = ad.platform === "both" ? ["android", "ios"] : [ad.platform];
 
+    if (!isPreviouslyPublished) {
     for (const platform of platforms) {
       const cpmRule = await getApplicablePricingRule(
         connection,
@@ -898,9 +1082,14 @@ const publishCampaign = async (
             cpc_pricing_rule_id,
             currency_code,
             cpm_rate,
-            cpc_rate
+            cpc_rate,
+            campaign_timezone,
+            daily_budget,
+            campaign_start_timestamp,
+            campaign_end_timestamp,
+            business_id
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           campaignId,
@@ -911,9 +1100,20 @@ const publishCampaign = async (
           cpmRule.currency_code,
           cpmRule.rate,
           cpcRule.rate,
+          ad.timezone,
+          ad.daily_budget,
+          startTimestamp,
+          endTimestamp,
+          ad.business_id,
         ],
       );
     }
+
+    }
+
+    const finalCampaignStatus = isPreviouslyPublished
+      ? ad.status
+      : campaignStatus;
 
     const [campaignUpdate] = await connection.execute(
       `
@@ -928,7 +1128,7 @@ const publishCampaign = async (
           updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
           AND user_id = ?
-          AND status = 'draft'
+          AND status IN ('draft', 'active', 'paused')
           AND is_deleted = 0
       `,
       [
@@ -937,33 +1137,21 @@ const publishCampaign = async (
         startTimestamp,
         endTimestamp,
         currency.currency_code,
-        campaignStatus,
+        finalCampaignStatus,
         campaignId,
         userId,
       ],
     );
 
-    if (campaignUpdate.affectedRows !== 1) {
-      throw createError("Campaign could not be published.", 409);
-    }
-
-    if (campaignStatus === "active") {
+    if (!isPreviouslyPublished) {
       const [adUpdate] = await connection.execute(
-        `
-          UPDATE ads
-          SET
-            status = 'active',
-            updated_at = CURRENT_TIMESTAMP
-          WHERE id = ?
-            AND user_id = ?
-            AND status = 'draft'
-            AND is_deleted = 0
-        `,
-        [adId, userId],
+        `UPDATE ads
+         SET status = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ? AND user_id = ? AND status = 'draft' AND is_deleted = 0`,
+        [finalCampaignStatus, adId, userId],
       );
-
       if (adUpdate.affectedRows !== 1) {
-        throw createError("Ad could not be activated.", 409);
+        throw createError("Ad could not be published.", 409);
       }
     }
 
@@ -1004,7 +1192,7 @@ const publishCampaign = async (
 
     return {
       campaign: rows[0],
-      ad_status: campaignStatus === "active" ? "active" : "draft",
+      ad_status: finalCampaignStatus,
       wallet_commitment: {
         available_balance: Number(microsToDecimal(availableWalletMicros)),
         existing_campaign_commitment: Number(outstanding.committedPayable),

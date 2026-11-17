@@ -33,4 +33,6 @@ export const createAdSchema = Joi.object({
   platform: baseFields.platform.required(),
 }).unknown(false);
 
-export const updateAdSchema = Joi.object(baseFields).min(1).unknown(false);
+const editableFields = { ...baseFields };
+delete editableFields.ad_type_id;
+export const updateAdSchema = Joi.object(editableFields).min(1).unknown(false);
