@@ -66,9 +66,6 @@ const prepareAdSubtype = async (adTypeId, subtypeId) => {
 
   const hasSubtypes = subtypeRows.length > 0;
 
-  // Subtype is required only for ad types that actually have active subtypes.
-  // For types without subtypes, always store NULL (also clears stale values
-  // when an existing ad is changed to a type that has no subtypes).
   if (!hasSubtypes) {
     return null;
   }

@@ -23,21 +23,13 @@ export const getAllAdActionButtons = async ({
         ? `SELECT
                id,
                name,
-               code,
-               sort_order,
-               is_active,
-               created_at,
-               updated_at
+               is_active
            FROM ad_action_button_types
            ORDER BY sort_order, id`
         : `SELECT
                id,
                name,
-               code,
-               sort_order,
-               is_active,
-               created_at,
-               updated_at
+               is_active
            FROM ad_action_button_types
            WHERE is_active = 1
            ORDER BY sort_order, id`;
