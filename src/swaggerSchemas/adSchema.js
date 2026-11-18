@@ -169,7 +169,7 @@ const adSchema = {
         type: "integer",
         nullable: true,
         description:
-          "Selected subtype ID. Required when the selected ad type has active subtypes. Must belong to the selected ad type.",
+          "Optional when the selected ad type has no active subtypes. Required when the selected ad type has active subtypes, and must belong to that ad type. Omit this field when no subtype is available.",
         example: 1,
       },
       title: {

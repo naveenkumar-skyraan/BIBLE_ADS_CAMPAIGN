@@ -242,7 +242,7 @@ const router = express.Router();
  *               ad_subtype_id:
  *                 type: integer
  *                 nullable: true
- *                 description: Selected subtype ID. Required when the selected ad type has active subtypes.
+ *                 description: Optional when the ad type has no active subtypes. Required when the ad type has active subtypes; must belong to the selected ad type. Omit this field when no subtype is available.
  *                 example: 1
  *               action_button_type_id:
  *                 type: integer
@@ -566,7 +566,7 @@ router.get("/:id", middleware, getAdController);
  *               ad_subtype_id:
  *                 type: integer
  *                 nullable: true
- *                 example: 1
+ *                 description: Required only when the selected ad type has active subtypes. Omit this field when the selected ad type has no active subtypes.
  *               action_button_type_id:
  *                 type: integer
  *                 nullable: true

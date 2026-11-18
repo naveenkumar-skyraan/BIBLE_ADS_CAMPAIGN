@@ -10,7 +10,7 @@ const baseFields = {
 
   ad_type_id: Joi.number().integer().positive(),
 
-  ad_subtype_id: Joi.number().integer().positive().allow(null),
+  ad_subtype_id: Joi.number().integer().positive().allow("", null),
 
   action_button_type_id: Joi.number().integer().positive().allow(null),
 

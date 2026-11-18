@@ -66,12 +66,15 @@ const prepareAdSubtype = async (adTypeId, subtypeId) => {
 
   const hasSubtypes = subtypeRows.length > 0;
 
-  if (hasSubtypes && (subtypeId == null || subtypeId === "")) {
-    throw createError("Please select an ad subtype.", 400);
+  // Subtype is required only for ad types that actually have active subtypes.
+  // For types without subtypes, always store NULL (also clears stale values
+  // when an existing ad is changed to a type that has no subtypes).
+  if (!hasSubtypes) {
+    return null;
   }
 
-  if (!hasSubtypes && subtypeId != null && subtypeId !== "") {
-    throw createError("Ad subtypes are not available for this ad type.", 400);
+  if (subtypeId == null || subtypeId === "") {
+    throw createError("Please select an ad subtype.", 400);
   }
 
   if (subtypeId != null && subtypeId !== "") {
