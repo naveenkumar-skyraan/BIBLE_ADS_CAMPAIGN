@@ -333,15 +333,40 @@ export const getAdModerationHistory = async (adId, userId) => {
   return result;
 };
 
+export const deleteAd = async (adId, userId) => {
+  if (!/^[1-9]\d*$/.test(String(adId))) {
+    throw createError("Invalid advertisement ID.", 400);
+  }
+
+  const result = await model.deleteAd(adId, userId);
+
+  if (result.notFound) {
+    throw createError("Advertisement or campaign not found.", 404);
+  }
+
+  if (result.invalidState) {
+    throw createError(
+      "This advertisement is currently active. Use the reason-based cancellation flow instead.",
+      409,
+    );
+  }
+
+  return result;
+};
+
+
+export const getCancellationReasons = async () => {
+  return model.getActiveCancellationReasons();
+};
+
 export const cancelAd = async (adId, userId, data) => {
   if (!/^[1-9]\d*$/.test(String(adId))) {
     throw createError("Invalid advertisement ID.", 400);
   }
 
   const result = await model.cancelActiveAd(adId, userId, {
-    reason_code: data.reason_code,
-    other_reason:
-      data.reason_code === "other" ? data.other_reason.trim() : null,
+    reason_id: data.reason_id,
+    other_reason: data.other_reason?.trim() || null,
   });
 
   if (result.notFound) {
@@ -350,6 +375,20 @@ export const cancelAd = async (adId, userId, data) => {
 
   if (result.invalidState) {
     throw createError("Only active advertisements can be cancelled.", 409);
+  }
+
+  if (result.invalidReason) {
+    throw createError(
+      "Selected cancellation reason is invalid or inactive. Fetch the active cancellation reasons and try again.",
+      400,
+    );
+  }
+
+  if (result.missingOtherReason) {
+    throw createError(
+      "Please provide other_reason for the selected cancellation reason.",
+      400,
+    );
   }
 
   return result;

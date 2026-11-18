@@ -12,11 +12,13 @@ import {
   createAdController,
   getAdController,
   getAdDetailsController,
+  deleteAdController,
   updateAdController,
   getMyAdsController,
   pauseAdController,
   resumeAdController,
   cancelAdController,
+  getAdCancellationReasonsController,
   submitAdForReviewController,
   getAdModerationHistoryController,
 } from "../controllers/adController.js";
@@ -61,7 +63,13 @@ const router = express.Router();
  *         campaign_id:
  *           type: integer
  *           nullable: true
- *           example: null
+ *           example: 15
+ *           description: Internal numeric campaign foreign key.
+ *         campaign_code:
+ *           type: string
+ *           nullable: true
+ *           example: CMP-48276193
+ *           description: Stable, non-sequential public campaign identifier for display.
  *         user_id:
  *           type: integer
  *           example: 3
@@ -279,7 +287,9 @@ router.post("/", middleware, adUpload.single("media"), createAdController);
  *     summary: Get authenticated user's advertisements
  *     description: >
  *       Returns paginated advertisements. Blocked advertisements are included
- *       in the active listing but are not eligible for delivery.
+ *       in the active listing but are not eligible for delivery. Each item
+ *       includes campaign_code for display and campaign_id as the internal
+ *       numeric campaign reference.
  *     tags: [Ads]
  *     security:
  *       - bearerAuth: []
@@ -420,6 +430,33 @@ router.post(
   "/analytics/batches",
   adAnalyticsAuthMiddleware,
   submitAdAnalyticsBatchController,
+);
+
+/**
+ * @swagger
+ * /api/ads/cancellation-reasons:
+ *   get:
+ *     summary: Get active advertisement cancellation reasons
+ *     description: Returns the active cancellation reasons. The mobile app should display reason_text and submit the selected id as reason_id when cancelling an advertisement.
+ *     tags: [Ads]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Active cancellation reasons fetched successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/GetAdCancellationReasonsResponse'
+ *       401:
+ *         description: Missing, invalid, or expired access token.
+ *       500:
+ *         description: Internal server error.
+ */
+router.get(
+  "/cancellation-reasons",
+  middleware,
+  getAdCancellationReasonsController,
 );
 
 /**
@@ -567,6 +604,38 @@ router.get("/:id", middleware, getAdController);
  *         description: Internal server error.
  */
 router.put("/:id", middleware, adUpload.single("media"), updateAdController);
+/**
+ * @swagger
+ * /api/ads/{id}:
+ *   delete:
+ *     summary: Delete an advertisement
+ *     description: >
+ *       Soft-deletes draft, paused, completed, blocked, or under-review ads.
+ *       Normally active ads must use POST /api/ads/{id}/cancel so the advertiser
+ *       provides a cancellation reason. The ad and its campaign are retained
+ *       in the database for financial and analytics history; future billing stops.
+ *     tags: [Ads]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *         description: Advertisement ID
+ *     responses:
+ *       200:
+ *         description: Advertisement soft-deleted successfully.
+ *       401:
+ *         description: Missing, invalid, or expired access token.
+ *       404:
+ *         description: Advertisement or campaign not found.
+ *       409:
+ *         description: A normally active advertisement must be cancelled with a reason.
+ *       500:
+ *         description: Internal server error.
+ */
+router.delete("/:id", middleware, deleteAdController);
 
 /**
  * @swagger
@@ -614,6 +683,11 @@ router.put("/:id", middleware, adUpload.single("media"), updateAdController);
  *                         campaign_id:
  *                           type: integer
  *                           example: 16
+ *                           description: Internal numeric campaign foreign key.
+ *                         campaign_code:
+ *                           type: string
+ *                           example: CMP-48276193
+ *                           description: Public campaign identifier to display in the app.
  *                         id:
  *                           type: integer
  *                           example: 16
@@ -811,8 +885,10 @@ router.put("/:id/campaign", middleware, adCampaignController.saveCampaign);
  *   post:
  *     summary: Publish a draft campaign or confirm updated published campaign settings
  *     description: >
- *       Publishes a saved draft campaign, or validates and confirms updated settings
- *       for an existing active or paused campaign. Active and paused campaigns retain
+ *       Publishes a saved draft campaign, validates updated settings for an existing
+ *       active or paused campaign, or creates a fresh campaign run when a completed
+ *       advertisement is republished through POST /api/ads/{id}/republish.
+ *       Active and paused campaigns retain
  *       their current status. Future custom-date draft campaigns remain in draft
  *       status until their scheduled start time. Wallet commitments are validated
  *       transactionally.
@@ -844,6 +920,46 @@ router.post(
   "/:id/campaign/publish",
   middleware,
   adCampaignController.publishCampaign,
+);
+
+/**
+ * @swagger
+ * /api/ads/{id}/republish:
+ *   post:
+ *     summary: Republish a completed advertisement
+ *     description: >
+ *       Starts a new campaign run for a completed ad using its previous daily
+ *       budget and duration. The new run starts immediately, receives a new
+ *       campaign_code, and snapshots the currently applicable CPM/CPC pricing.
+ *       The previous completed campaign and spend history are retained.
+ *       Blocked or under-review advertisements cannot be republished.
+ *     tags: [Ads]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *         description: Advertisement ID
+ *     responses:
+ *       200:
+ *         description: A new campaign run was created and linked to the advertisement.
+ *       400:
+ *         description: Insufficient wallet balance or no applicable pricing rule.
+ *       401:
+ *         description: Missing, invalid, or expired access token.
+ *       404:
+ *         description: Advertisement, campaign, or wallet not found.
+ *       409:
+ *         description: Advertisement is not completed, is under moderation, or its currency changed.
+ *       500:
+ *         description: Internal server error.
+ */
+router.post(
+  "/:id/republish",
+  middleware,
+  adCampaignController.republishCompletedAd,
 );
 
 /**
@@ -919,7 +1035,9 @@ router.put("/:id/resume", middleware, resumeAdController);
  *     summary: Cancel an advertisement campaign
  *     description: >
  *       Cancels an advertisement campaign owned by the authenticated user,
- *       subject to the campaign's current state and cancellation rules.
+ *       subject to the campaign's current state and cancellation rules. A reason_id
+ *       from GET /api/ads/cancellation-reasons is required. other_reason is additionally
+ *       required when the selected reason has requires_other=1.
  *     tags: [Ads]
  *     security:
  *       - bearerAuth: []
@@ -930,6 +1048,14 @@ router.put("/:id/resume", middleware, resumeAdController);
  *         schema:
  *           type: integer
  *         description: Advertisement ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/CancelAdRequest'
+ *           example:
+ *             reason_id: 6
  *     responses:
  *       200:
  *         description: Advertisement campaign cancelled successfully.

@@ -5,6 +5,7 @@ import {
   microsToDecimal,
 } from "../utils/adSpendCalculator.js";
 import { getCurrencyForCountry } from "../utils/currencyConfig.js";
+import { insertCampaignWithUniqueCode } from "../utils/campaignCode.js";
 import {
   calculateWalletPayableMicros,
   getWalletCommitmentSummary,
@@ -207,16 +208,20 @@ const saveCampaign = async (adId, userId, data, schedule = null) => {
         if (!schedule) {
           throw createError("A valid replacement campaign schedule is required.", 400);
         }
-        const now = Math.floor(Date.now() / 1000);
-        if (ad.status === "active" &&
-            (schedule.campaignStatus !== "active" || liveSchedule.startTimestamp > now || liveSchedule.endTimestamp < now)) {
-          throw createError("An active campaign must remain within an active campaign period. Pause it before scheduling a future start date.", 409);
-        }
-
         const liveSchedule = {
           ...schedule,
           campaignStatus: ad.status,
         };
+        const now = Math.floor(Date.now() / 1000);
+        if (
+          ad.status === "active" &&
+          (liveSchedule.startTimestamp > now || liveSchedule.endTimestamp < now)
+        ) {
+          throw createError(
+            "An active campaign must remain within an active campaign period. Pause it before scheduling a future start date.",
+            409,
+          );
+        }
         const [walletRows] = await connection.execute(
           `SELECT id FROM wallets WHERE user_id = ? LIMIT 1 FOR UPDATE`,
           [userId],
@@ -634,9 +639,11 @@ const saveCampaign = async (adId, userId, data, schedule = null) => {
         );
       }
     } else {
-      const [result] = await connection.execute(
+      const [result] = await insertCampaignWithUniqueCode(
+        connection,
         `
           INSERT INTO ad_campaigns (
+            campaign_code,
             user_id,
             business_id,
             currency_code,
@@ -651,7 +658,7 @@ const saveCampaign = async (adId, userId, data, schedule = null) => {
             status
           )
           VALUES (
-            ?, ?, ?, 'daily', ?, ?, ?, ?, ?, ?, ?, 'draft'
+            ?, ?, ?, ?, 'daily', ?, ?, ?, ?, ?, ?, ?, 'draft'
           )
         `,
         [
@@ -694,6 +701,7 @@ const saveCampaign = async (adId, userId, data, schedule = null) => {
       `
         SELECT
           id,
+          campaign_code,
           user_id,
           business_id,
           currency_code,
@@ -751,6 +759,7 @@ const getCampaignDetails = async (adId, userId) => {
         a.ad_subtype_id,
         a.platform AS ad_platform,
         c.id,
+        c.campaign_code,
         c.user_id,
         c.business_id,
         c.currency_code,
@@ -1159,6 +1168,7 @@ const publishCampaign = async (
       `
         SELECT
           id,
+          campaign_code,
           user_id,
           business_id,
           currency_code,
@@ -1202,6 +1212,356 @@ const publishCampaign = async (
         remaining_uncommitted_balance: Number(
           microsToDecimal(availableWalletMicros - requiredWalletMicros),
         ),
+        currency: currency.currency_code,
+      },
+    };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+};
+
+const getCompletedCampaignForRepublish = async (adId, userId) => {
+  const [rows] = await pool.execute(
+    `
+      SELECT
+        a.id AS ad_id,
+        a.campaign_id,
+        a.status AS ad_status,
+        a.moderation_status,
+        a.platform,
+        a.objective_id,
+        a.ad_type_id,
+        a.ad_subtype_id,
+        a.business_id AS ad_business_id,
+        bd.country_code,
+        bd.admin_area_1,
+        bd.city,
+        c.id AS campaign_internal_id,
+        c.campaign_code AS previous_campaign_code,
+        c.business_id,
+        c.currency_code,
+        c.total_budget,
+        c.daily_budget,
+        c.duration_days,
+        c.timezone,
+        c.status AS campaign_status
+      FROM ads a
+      INNER JOIN ad_campaigns c
+        ON c.id = a.campaign_id
+        AND c.user_id = a.user_id
+      INNER JOIN business_details bd
+        ON bd.id = a.business_id
+        AND bd.user_id = a.user_id
+        AND bd.is_deleted = 0
+      WHERE a.id = ?
+        AND a.user_id = ?
+        AND a.status = 'completed'
+        AND c.status = 'completed'
+        AND a.is_deleted = 0
+        AND c.is_deleted = 0
+      LIMIT 1
+    `,
+    [adId, userId],
+  );
+
+  return rows[0] || null;
+};
+
+const republishCompletedCampaign = async (
+  adId,
+  userId,
+  { durationDays, startDate, endDate, startTimestamp, endTimestamp, campaignStatus },
+) => {
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    const [walletRows] = await connection.execute(
+      `SELECT id FROM wallets WHERE user_id = ? LIMIT 1 FOR UPDATE`,
+      [userId],
+    );
+    if (!walletRows.length) throw createError("Wallet not found.", 404);
+    const wallet = walletRows[0];
+
+    const [adRows] = await connection.execute(
+      `
+        SELECT
+          a.id,
+          a.campaign_id,
+          a.status AS ad_status,
+          a.moderation_status,
+          a.platform,
+          a.objective_id,
+          a.ad_type_id,
+          a.ad_subtype_id,
+          a.business_id AS ad_business_id,
+          bd.country_code,
+          bd.admin_area_1,
+          bd.city,
+          c.id AS previous_campaign_id,
+          c.campaign_code AS previous_campaign_code,
+          c.currency_code AS previous_currency_code,
+          c.total_budget,
+          c.daily_budget,
+          c.duration_days AS previous_duration_days,
+          c.timezone
+        FROM ads a
+        INNER JOIN ad_campaigns c
+          ON c.id = a.campaign_id
+          AND c.user_id = a.user_id
+        INNER JOIN business_details bd
+          ON bd.id = a.business_id
+          AND bd.user_id = a.user_id
+          AND bd.is_deleted = 0
+        WHERE a.id = ?
+          AND a.user_id = ?
+          AND a.status = 'completed'
+          AND c.status = 'completed'
+          AND a.is_deleted = 0
+          AND c.is_deleted = 0
+        LIMIT 1
+        FOR UPDATE
+      `,
+      [adId, userId],
+    );
+
+    if (!adRows.length) {
+      throw createError("Only completed advertisements can be republished.", 409);
+    }
+
+    const ad = adRows[0];
+    if (ad.moderation_status !== "none") {
+      throw createError(
+        "This advertisement cannot be republished while it is blocked or under moderation.",
+        409,
+      );
+    }
+
+    if (Number(ad.previous_duration_days) !== Number(durationDays)) {
+      throw createError("The saved campaign duration changed. Refresh and try again.", 409);
+    }
+
+    const currency = getCurrencyForCountry(ad.country_code);
+    if (ad.previous_currency_code !== currency.currency_code) {
+      throw createError(
+        "The business country currency has changed. Update the campaign budget before republishing.",
+        409,
+      );
+    }
+
+    await connection.execute(
+      `INSERT IGNORE INTO wallet_balances (wallet_id, currency_code, balance)
+       VALUES (?, ?, 0.000000)`,
+      [wallet.id, currency.currency_code],
+    );
+
+    const [walletBalanceRows] = await connection.execute(
+      `SELECT balance FROM wallet_balances
+       WHERE wallet_id = ? AND currency_code = ?
+       FOR UPDATE`,
+      [wallet.id, currency.currency_code],
+    );
+    if (!walletBalanceRows.length) {
+      throw createError("Wallet currency balance not found.", 404);
+    }
+
+    const nowTimestamp = Math.floor(Date.now() / 1000);
+    const outstanding = await getWalletCommitmentSummary(
+      connection,
+      userId,
+      nowTimestamp,
+      currency.currency_code,
+    );
+    const campaignPayable = calculateWalletPayableMicros(
+      decimalToMicros(ad.total_budget),
+    );
+    const requiredWalletMicros =
+      outstanding.committedPayableMicros + campaignPayable.payableMicros;
+    const availableWalletMicros = decimalToMicros(walletBalanceRows[0].balance);
+
+    if (availableWalletMicros < requiredWalletMicros) {
+      throw createError(
+        "Insufficient wallet balance to republish this campaign while maintaining the budgets of your other campaigns.",
+        400,
+        {
+          available_balance: Number(microsToDecimal(availableWalletMicros)),
+          existing_campaign_commitment: Number(outstanding.committedPayable),
+          current_campaign_required: Number(microsToDecimal(campaignPayable.payableMicros)),
+          total_required: Number(microsToDecimal(requiredWalletMicros)),
+          additional_amount_required: Number(microsToDecimal(requiredWalletMicros - availableWalletMicros)),
+          currency: currency.currency_code,
+        },
+      );
+    }
+
+    if (!["android", "ios", "both"].includes(ad.platform)) {
+      throw createError("Invalid ad platform configuration.", 400);
+    }
+
+    const pricingAd = {
+      objective_id: ad.objective_id,
+      ad_type_id: ad.ad_type_id,
+      ad_subtype_id: ad.ad_subtype_id,
+      country_code: ad.country_code,
+      admin_area_1: ad.admin_area_1,
+      city: ad.city,
+      currency_code: currency.currency_code,
+    };
+    const platforms = ad.platform === "both" ? ["android", "ios"] : [ad.platform];
+    const pricingRows = [];
+
+    for (const platform of platforms) {
+      const cpmRule = await getApplicablePricingRule(connection, "cpm", pricingAd, platform);
+      const cpcRule = await getApplicablePricingRule(connection, "cpc", pricingAd, platform);
+      if (cpmRule.currency_code !== currency.currency_code || cpcRule.currency_code !== currency.currency_code) {
+        throw createError(`CPM and CPC pricing currencies do not match for ${platform}.`, 400);
+      }
+      pricingRows.push({ platform, cpmRule, cpcRule });
+    }
+
+    const [campaignResult] = await insertCampaignWithUniqueCode(
+      connection,
+      `
+        INSERT INTO ad_campaigns (
+          campaign_code,
+          user_id,
+          business_id,
+          currency_code,
+          budget_type,
+          total_budget,
+          daily_budget,
+          duration_type,
+          duration_days,
+          start_date,
+          end_date,
+          start_timestamp,
+          end_timestamp,
+          timezone,
+          status
+        )
+        VALUES (?, ?, ?, ?, 'daily', ?, ?, 'days', ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        userId,
+        ad.ad_business_id,
+        currency.currency_code,
+        ad.total_budget,
+        ad.daily_budget,
+        durationDays,
+        startDate,
+        endDate,
+        startTimestamp,
+        endTimestamp,
+        ad.timezone,
+        campaignStatus,
+      ],
+    );
+
+    const newCampaignId = campaignResult.insertId;
+
+    for (const item of pricingRows) {
+      await connection.execute(
+        `
+          INSERT INTO ad_campaign_pricing (
+            campaign_id,
+            ad_id,
+            platform,
+            cpm_pricing_rule_id,
+            cpc_pricing_rule_id,
+            currency_code,
+            cpm_rate,
+            cpc_rate,
+            campaign_timezone,
+            daily_budget,
+            campaign_start_timestamp,
+            campaign_end_timestamp,
+            business_id
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          newCampaignId,
+          adId,
+          item.platform,
+          item.cpmRule.id,
+          item.cpcRule.id,
+          currency.currency_code,
+          item.cpmRule.rate,
+          item.cpcRule.rate,
+          ad.timezone,
+          ad.daily_budget,
+          startTimestamp,
+          endTimestamp,
+          ad.ad_business_id,
+        ],
+      );
+    }
+
+    const [adUpdate] = await connection.execute(
+      `
+        UPDATE ads
+        SET campaign_id = ?,
+            status = ?,
+            last_completed_step = 3,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+          AND user_id = ?
+          AND status = 'completed'
+          AND is_deleted = 0
+      `,
+      [newCampaignId, campaignStatus, adId, userId],
+    );
+    if (adUpdate.affectedRows !== 1) {
+      throw createError("Completed advertisement could not be republished.", 409);
+    }
+
+    const [campaignRows] = await connection.execute(
+      `
+        SELECT
+          id,
+          campaign_code,
+          user_id,
+          business_id,
+          currency_code,
+          budget_type,
+          total_budget,
+          daily_budget,
+          duration_type,
+          duration_days,
+          start_date,
+          end_date,
+          start_timestamp,
+          end_timestamp,
+          timezone,
+          status,
+          created_at,
+          updated_at
+        FROM ad_campaigns
+        WHERE id = ? AND user_id = ? AND is_deleted = 0
+        LIMIT 1
+      `,
+      [newCampaignId, userId],
+    );
+    if (!campaignRows.length) {
+      throw createError("Republished campaign could not be retrieved.", 404);
+    }
+
+    await connection.commit();
+
+    return {
+      campaign: campaignRows[0],
+      previous_campaign_id: String(ad.previous_campaign_id),
+      previous_campaign_code: ad.previous_campaign_code,
+      ad_status: campaignStatus,
+      wallet_commitment: {
+        available_balance: Number(microsToDecimal(availableWalletMicros)),
+        existing_campaign_commitment: Number(outstanding.committedPayable),
+        current_campaign_required: Number(microsToDecimal(campaignPayable.payableMicros)),
+        remaining_uncommitted_balance: Number(microsToDecimal(availableWalletMicros - requiredWalletMicros)),
         currency: currency.currency_code,
       },
     };
@@ -1278,4 +1638,6 @@ export {
   publishCampaign,
   getCampaignEstimationData,
   getCampaignPricingPreview,
+  getCompletedCampaignForRepublish,
+  republishCompletedCampaign,
 };

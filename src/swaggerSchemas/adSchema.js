@@ -144,7 +144,14 @@ const adSchema = {
       campaign_id: {
         type: "integer",
         nullable: true,
-        example: null,
+        example: 15,
+        description: "Internal numeric campaign foreign key.",
+      },
+      campaign_code: {
+        type: "string",
+        nullable: true,
+        example: "CMP-48276193",
+        description: "Stable, non-sequential public campaign identifier.",
       },
       business_id: {
         type: "integer",
@@ -321,6 +328,65 @@ const adSchema = {
         type: "array",
         items: {
           $ref: "#/components/schemas/AdActionButtonResponse",
+        },
+      },
+    },
+  },
+
+
+  CancelAdRequest: {
+    type: "object",
+    required: ["reason_id"],
+    properties: {
+      reason_id: {
+        type: "integer",
+        format: "int64",
+        minimum: 1,
+        description: "ID of an active cancellation reason returned by GET /api/ads/cancellation-reasons.",
+        example: 6,
+      },
+      other_reason: {
+        type: "string",
+        minLength: 1,
+        maxLength: 5000,
+        nullable: true,
+        description: "Required when the selected cancellation reason has requires_other=1.",
+        example: "I need to change the campaign strategy.",
+      },
+    },
+  },
+
+  GetAdCancellationReasonsResponse: {
+    type: "object",
+    properties: {
+      success: {
+        type: "boolean",
+        example: true,
+      },
+      message: {
+        type: "string",
+        example: "Cancellation reasons fetched successfully.",
+      },
+      data: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            id: {
+              type: "integer",
+              format: "int64",
+              example: 1,
+            },
+            reason_text: {
+              type: "string",
+              example: "Campaign is no longer needed",
+            },
+            requires_other: {
+              type: "integer",
+              enum: [0, 1],
+              example: 0,
+            },
+          },
         },
       },
     },

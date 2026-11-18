@@ -83,6 +83,7 @@ export const getAdById = async (adId, userId) => {
     `SELECT
             a.id,
             a.campaign_id,
+            c.campaign_code,
             a.user_id,
             a.business_id,
             a.objective_id,
@@ -277,6 +278,7 @@ export const getAdDetailsForView = async (adId, userId, period = "this_month") =
       SELECT
         a.id AS ad_id,
         a.campaign_id,
+        c.campaign_code,
         a.user_id,
         a.business_id,
         bd.business_name,
@@ -373,6 +375,7 @@ export const getAdDetailsForView = async (adId, userId, period = "this_month") =
     ad: {
       id: row.ad_id,
       campaign_id: row.campaign_id,
+      campaign_code: row.campaign_code,
       business_id: row.business_id,
       business_name: row.business_name,
       objective_id: row.objective_id,
@@ -398,6 +401,7 @@ export const getAdDetailsForView = async (adId, userId, period = "this_month") =
     },
     campaign: row.campaign_id ? {
       id: row.campaign_id,
+      campaign_code: row.campaign_code,
       status: row.campaign_status,
       currency_code: row.currency_code,
       total_budget: row.total_budget,
@@ -535,6 +539,7 @@ export const getMyAds = async (userId, { status, search, limit, offset }) => {
       SELECT
         a.id,
         a.campaign_id,
+        c.campaign_code,
         a.user_id,
         a.business_id,
         a.objective_id,
@@ -1011,6 +1016,128 @@ export const getAdModerationHistory = async (adId, userId) => {
   };
 };
 
+export const getActiveCancellationReasons = async () => {
+  const [rows] = await db.execute(
+    `SELECT
+      id,
+      reason_text,
+      requires_other
+    FROM ad_cancellation_reasons
+    WHERE is_active = 1
+    ORDER BY sort_order ASC, id ASC`,
+  );
+
+  return rows;
+};
+
+export const deleteAd = async (adId, userId) => {
+  const connection = await db.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    const [rows] = await connection.execute(
+      `
+        SELECT
+          a.id AS ad_id,
+          a.campaign_id,
+          a.status AS ad_status,
+          a.moderation_status,
+          c.status AS campaign_status,
+          c.campaign_code,
+          c.is_deleted AS campaign_is_deleted
+        FROM ads a
+        LEFT JOIN ad_campaigns c
+          ON c.id = a.campaign_id
+          AND c.user_id = a.user_id
+        WHERE a.id = ?
+          AND a.user_id = ?
+          AND a.is_deleted = 0
+          AND (a.campaign_id IS NULL OR c.is_deleted = 0)
+        LIMIT 1
+        FOR UPDATE
+      `,
+      [adId, userId],
+    );
+
+    if (!rows.length) {
+      await connection.rollback();
+      return { notFound: true };
+    }
+
+    const ad = rows[0];
+    const isNonDeliveringModerationState =
+      ad.ad_status === "active" &&
+      ["blocked", "under_review"].includes(ad.moderation_status);
+    const canDelete =
+      ["draft", "paused", "completed"].includes(ad.ad_status) ||
+      isNonDeliveringModerationState;
+
+    // A normally active ad must use the reason-based cancellation flow.
+    if (!canDelete) {
+      await connection.rollback();
+      return { invalidState: true };
+    }
+
+    const deletedAt = Math.floor(Date.now() / 1000);
+
+    if (ad.campaign_id) {
+      const [campaignResult] = await connection.execute(
+        `
+          UPDATE ad_campaigns
+          SET
+            is_deleted = 1,
+            deleted_at = ?,
+            billing_stopped_at = COALESCE(billing_stopped_at, ?),
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+            AND user_id = ?
+            AND is_deleted = 0
+        `,
+        [deletedAt, deletedAt, ad.campaign_id, userId],
+      );
+
+      if (campaignResult.affectedRows !== 1) {
+        throw new Error("Campaign could not be deleted.");
+      }
+    }
+
+    const [adResult] = await connection.execute(
+      `
+        UPDATE ads
+        SET
+          is_deleted = 1,
+          deleted_at = ?,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+          AND user_id = ?
+          AND is_deleted = 0
+      `,
+      [deletedAt, adId, userId],
+    );
+
+    if (adResult.affectedRows !== 1) {
+      throw new Error("Ad could not be deleted.");
+    }
+
+    await connection.commit();
+
+    return {
+      notFound: false,
+      invalidState: false,
+      ad_id: String(adId),
+      campaign_id: ad.campaign_id == null ? null : String(ad.campaign_id),
+      campaign_code: ad.campaign_code || null,
+      deleted_at: deletedAt,
+    };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+};
+
 export const cancelActiveAd = async (adId, userId, data) => {
   const connection = await db.getConnection();
 
@@ -1026,6 +1153,7 @@ export const cancelActiveAd = async (adId, userId, data) => {
           a.is_deleted AS ad_is_deleted,
 
           c.user_id,
+          c.campaign_code,
           c.status AS campaign_status,
           c.is_deleted AS campaign_is_deleted
 
@@ -1058,16 +1186,45 @@ export const cancelActiveAd = async (adId, userId, data) => {
       return { invalidState: true };
     }
 
+    // Resolve the selected reason from the master table. The mobile app sends
+    // only the stable ID; display text remains fully database-managed.
+    const [reasonRows] = await connection.execute(
+      `
+        SELECT id, reason_text, requires_other
+        FROM ad_cancellation_reasons
+        WHERE id = ?
+          AND is_active = 1
+        LIMIT 1
+        FOR UPDATE
+      `,
+      [data.reason_id],
+    );
+
+    if (!reasonRows.length) {
+      await connection.rollback();
+      return { invalidReason: true };
+    }
+
+    const selectedReason = reasonRows[0];
+    const otherReason = data.other_reason?.trim() || null;
+
+    if (Number(selectedReason.requires_other) === 1 && !otherReason) {
+      await connection.rollback();
+      return { missingOtherReason: true };
+    }
+
     const cancelledAt = Math.floor(Date.now() / 1000);
 
-    // 1. Record cancellation feedback.
+    // 1. Record cancellation feedback using the stable master-table ID.
+    // reason_code is retained as a nullable legacy column by the migration
+    // so historical rows remain intact; new rows use reason_id only.
     const [cancellationResult] = await connection.execute(
       `
         INSERT INTO ad_campaign_cancellations (
           campaign_id,
           ad_id,
           user_id,
-          reason_code,
+          reason_id,
           other_reason,
           cancelled_at
         )
@@ -1077,8 +1234,8 @@ export const cancelActiveAd = async (adId, userId, data) => {
         ad.campaign_id,
         ad.ad_id,
         userId,
-        data.reason_code,
-        data.other_reason || null,
+        selectedReason.id,
+        Number(selectedReason.requires_other) === 1 ? otherReason : null,
         cancelledAt,
       ],
     );
@@ -1130,8 +1287,10 @@ export const cancelActiveAd = async (adId, userId, data) => {
       notFound: false,
       invalidState: false,
       campaign_id: String(ad.campaign_id),
+      campaign_code: ad.campaign_code,
       ad_id: String(adId),
       cancellation_id: String(cancellationResult.insertId),
+      reason_id: Number(selectedReason.id),
       cancelled_at: cancelledAt,
     };
   } catch (error) {

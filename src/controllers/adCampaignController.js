@@ -75,6 +75,23 @@ const adCampaignController = {
     }
   },
 
+  async republishCompletedAd(req, res, next) {
+    try {
+      const adId = parseAdId(req.params.id);
+      const result = await adCampaignService.republishCompletedAd(adId, req.user.id);
+
+      return res.status(200).json({
+        success: true,
+        message: result.ad_status === "draft"
+          ? "Completed advertisement republished as a scheduled campaign."
+          : "Completed advertisement republished successfully.",
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async getCampaignEstimation(req, res, next) {
     try {
       const adId = parseAdId(req.params.id);

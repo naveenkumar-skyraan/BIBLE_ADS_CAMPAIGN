@@ -234,6 +234,20 @@ export const getAdModerationHistoryController = async (req, res) => {
 };
 
 
+export const deleteAdController = async (req, res) => {
+  try {
+    const data = await service.deleteAd(req.params.id, req.user.id);
+
+    return res.status(200).json({
+      success: true,
+      message: "Advertisement deleted successfully.",
+      data,
+    });
+  } catch (error) {
+    return handleError(res, error);
+  }
+};
+
 export const cancelAdController = async (req, res) => {
   const result = validate(cancelAdSchema, req.body);
 
@@ -255,6 +269,21 @@ export const cancelAdController = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Advertisement cancelled successfully.",
+      data,
+    });
+  } catch (error) {
+    return handleError(res, error);
+  }
+};
+
+
+export const getAdCancellationReasonsController = async (req, res) => {
+  try {
+    const data = await service.getCancellationReasons();
+
+    return res.status(200).json({
+      success: true,
+      message: "Cancellation reasons fetched successfully.",
       data,
     });
   } catch (error) {

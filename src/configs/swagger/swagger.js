@@ -96,6 +96,8 @@ const options = {
 
         AdResponse: adSchema.AdResponse,
         AdSingleResponse: adSchema.AdSingleResponse,
+        CancelAdRequest: adSchema.CancelAdRequest,
+        GetAdCancellationReasonsResponse: adSchema.GetAdCancellationReasonsResponse,
 
         UpdateProfileRequest: profileSchema.UpdateProfileRequest,
         ProfileResponse: profileSchema.ProfileResponse,
