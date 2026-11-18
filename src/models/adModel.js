@@ -95,6 +95,7 @@ export const getAdById = async (adId, userId) => {
             a.destination_link,
             a.platform,
             a.status,
+            a.moderation_status,
             a.last_completed_step,
             LEAST(a.last_completed_step + 1, 3) AS resume_step,
             CASE
@@ -1030,7 +1031,63 @@ export const getActiveCancellationReasons = async () => {
   return rows;
 };
 
-export const deleteAd = async (adId, userId) => {
+export const getPausedAdDeletePreview = async (adId, userId) => {
+  const [rows] = await db.execute(
+    `
+      SELECT
+        a.id AS ad_id,
+        a.title AS campaign_name,
+        a.status AS ad_status,
+        a.moderation_status,
+        c.id AS campaign_id,
+        c.campaign_code,
+        c.status AS campaign_status,
+        c.currency_code,
+        c.total_budget,
+        COALESCE(SUM(ds.total_charge), 0) AS amount_spent
+      FROM ads a
+      INNER JOIN ad_campaigns c
+        ON c.id = a.campaign_id
+        AND c.user_id = a.user_id
+        AND c.is_deleted = 0
+      LEFT JOIN ad_campaign_daily_spend ds
+        ON ds.campaign_id = c.id
+        AND ds.currency_code = c.currency_code
+      WHERE a.id = ?
+        AND a.user_id = ?
+        AND a.is_deleted = 0
+      GROUP BY
+        a.id, a.title, a.status, a.moderation_status,
+        c.id, c.campaign_code, c.status, c.currency_code, c.total_budget
+      LIMIT 1
+    `,
+    [adId, userId],
+  );
+
+  if (!rows.length) return { notFound: true };
+  const row = rows[0];
+  if (row.ad_status !== "paused") return { invalidState: true };
+
+  const budgetMicros = decimalToMicros(row.total_budget);
+  const spentMicros = decimalToMicros(row.amount_spent);
+  const remainingMicros = budgetMicros > spentMicros ? budgetMicros - spentMicros : 0n;
+
+  return {
+    ad_id: String(row.ad_id),
+    campaign_id: String(row.campaign_id),
+    campaign_code: row.campaign_code,
+    campaign_name: row.campaign_name,
+    ad_status: row.ad_status,
+    moderation_status: row.moderation_status,
+    campaign_status: row.campaign_status,
+    currency_code: row.currency_code,
+    total_budget: microsToDecimal(budgetMicros),
+    amount_spent: microsToDecimal(spentMicros),
+    remaining_amount: microsToDecimal(remainingMicros),
+  };
+};
+
+export const deleteAd = async (adId, userId, data = {}) => {
   const connection = await db.getConnection();
 
   try {
@@ -1066,17 +1123,56 @@ export const deleteAd = async (adId, userId) => {
     }
 
     const ad = rows[0];
-    const isNonDeliveringModerationState =
-      ad.ad_status === "active" &&
-      ["blocked", "under_review"].includes(ad.moderation_status);
-    const canDelete =
-      ["draft", "paused", "completed"].includes(ad.ad_status) ||
-      isNonDeliveringModerationState;
+    let cancellationId = null;
 
-    // A normally active ad must use the reason-based cancellation flow.
-    if (!canDelete) {
-      await connection.rollback();
-      return { invalidState: true };
+    // Active campaigns use the same DELETE endpoint, while preserving the
+    // existing required cancellation-feedback flow. Other statuses need no reason.
+    if (ad.ad_status === "active") {
+      if (!data.reason_id) {
+        await connection.rollback();
+        return { invalidState: true };
+      }
+
+      const [reasonRows] = await connection.execute(
+        `
+          SELECT id, requires_other
+          FROM ad_cancellation_reasons
+          WHERE id = ? AND is_active = 1
+          LIMIT 1
+          FOR UPDATE
+        `,
+        [data.reason_id],
+      );
+
+      if (!reasonRows.length) {
+        await connection.rollback();
+        return { invalidReason: true };
+      }
+
+      const reason = reasonRows[0];
+      const otherReason = data.other_reason?.trim() || null;
+      if (Number(reason.requires_other) === 1 && !otherReason) {
+        await connection.rollback();
+        return { missingOtherReason: true };
+      }
+      if (!ad.campaign_id) {
+        await connection.rollback();
+        return { invalidState: true };
+      }
+
+      const [feedbackResult] = await connection.execute(
+        `
+          INSERT INTO ad_campaign_cancellations (
+            campaign_id, ad_id, user_id, reason_id, other_reason, cancelled_at
+          ) VALUES (?, ?, ?, ?, ?, ?)
+        `,
+        [
+          ad.campaign_id, ad.ad_id, userId, reason.id,
+          Number(reason.requires_other) === 1 ? otherReason : null,
+          Math.floor(Date.now() / 1000),
+        ],
+      );
+      cancellationId = String(feedbackResult.insertId);
     }
 
     const deletedAt = Math.floor(Date.now() / 1000);
@@ -1128,6 +1224,7 @@ export const deleteAd = async (adId, userId) => {
       ad_id: String(adId),
       campaign_id: ad.campaign_id == null ? null : String(ad.campaign_id),
       campaign_code: ad.campaign_code || null,
+      cancellation_id: cancellationId,
       deleted_at: deletedAt,
     };
   } catch (error) {

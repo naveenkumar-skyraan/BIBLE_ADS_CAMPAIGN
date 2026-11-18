@@ -1,7 +1,7 @@
 import * as service from "../services/adService.js";
 import { createAdSchema, updateAdSchema } from "../validators/adValidator.js";
 import { submitAdForReviewSchema } from "../validators/adModerationValidator.js";
-import { cancelAdSchema } from "../validators/adCancellationValidator.js";
+import { cancelAdSchema, deleteAdSchema } from "../validators/adCancellationValidator.js";
 
 import fs from "node:fs/promises";
 
@@ -235,12 +235,35 @@ export const getAdModerationHistoryController = async (req, res) => {
 
 
 export const deleteAdController = async (req, res) => {
+  const result = validate(deleteAdSchema, req.body || {});
+
+  if (result.errors) {
+    return res.status(400).json({
+      success: false,
+      message: "Validation failed.",
+      errors: result.errors,
+    });
+  }
+
   try {
-    const data = await service.deleteAd(req.params.id, req.user.id);
+    const data = await service.deleteAd(req.params.id, req.user.id, result.value);
 
     return res.status(200).json({
       success: true,
       message: "Advertisement deleted successfully.",
+      data,
+    });
+  } catch (error) {
+    return handleError(res, error);
+  }
+};
+
+export const getAdDeletePreviewController = async (req, res) => {
+  try {
+    const data = await service.getAdDeletePreview(req.params.id, req.user.id);
+    return res.status(200).json({
+      success: true,
+      message: "Paused campaign deletion preview fetched successfully.",
       data,
     });
   } catch (error) {

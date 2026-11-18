@@ -13,6 +13,7 @@ import {
   getAdController,
   getAdDetailsController,
   deleteAdController,
+  getAdDeletePreviewController,
   updateAdController,
   getMyAdsController,
   pauseAdController,
@@ -517,6 +518,35 @@ router.get(
  */
 router.get("/:id/details", middleware, getAdDetailsController);
 
+/**
+ * @swagger
+ * /api/ads/{id}/delete-preview:
+ *   get:
+ *     summary: Get deletion preview for a paused advertisement
+ *     description: >
+ *       Returns campaign budget, amount spent (sum of campaign daily total_charge),
+ *       and remaining amount. This endpoint is available only when the ad is paused.
+ *       No wallet refund or amount-returned value is calculated. Other ad statuses
+ *       should call DELETE /api/ads/{id} directly without this preview.
+ *     tags: [Ads]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *         description: Advertisement ID
+ *     responses:
+ *       200:
+ *         description: Paused campaign deletion preview fetched successfully.
+ *       404:
+ *         description: Advertisement or campaign not found.
+ *       409:
+ *         description: Preview is available only for paused advertisements.
+ */
+router.get("/:id/delete-preview", middleware, getAdDeletePreviewController);
+
 router.get("/:id", middleware, getAdController);
 
 /**
@@ -608,12 +638,15 @@ router.put("/:id", middleware, adUpload.single("media"), updateAdController);
  * @swagger
  * /api/ads/{id}:
  *   delete:
- *     summary: Delete an advertisement
+ *     summary: Delete an advertisement in any lifecycle status
  *     description: >
- *       Soft-deletes draft, paused, completed, blocked, or under-review ads.
- *       Normally active ads must use POST /api/ads/{id}/cancel so the advertiser
- *       provides a cancellation reason. The ad and its campaign are retained
- *       in the database for financial and analytics history; future billing stops.
+ *       Soft-deletes the ad and its associated campaign for active, draft, paused,
+ *       completed, blocked, and under-review ads. Active ads must include reason_id
+ *       from GET /api/ads/cancellation-reasons; other_reason is required when the
+ *       selected reason has requires_other=1. Paused ads may first call
+ *       GET /api/ads/{id}/delete-preview to display total budget, amount spent,
+ *       and remaining amount. The preview is not required for other statuses.
+ *       Historical analytics and spend are retained and future billing stops.
  *     tags: [Ads]
  *     security:
  *       - bearerAuth: []
@@ -623,15 +656,31 @@ router.put("/:id", middleware, adUpload.single("media"), updateAdController);
  *         required: true
  *         schema: { type: integer }
  *         description: Advertisement ID
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               reason_id:
+ *                 type: integer
+ *                 description: Required for active advertisements.
+ *               other_reason:
+ *                 type: string
+ *                 maxLength: 5000
+ *                 description: Required when the selected reason requires additional details.
+ *           example:
+ *             reason_id: 6
  *     responses:
  *       200:
  *         description: Advertisement soft-deleted successfully.
+ *       400:
+ *         description: Invalid cancellation reason or missing required other_reason.
  *       401:
  *         description: Missing, invalid, or expired access token.
  *       404:
  *         description: Advertisement or campaign not found.
- *       409:
- *         description: A normally active advertisement must be cancelled with a reason.
  *       500:
  *         description: Internal server error.
  */
