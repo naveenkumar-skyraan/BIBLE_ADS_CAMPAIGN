@@ -311,26 +311,23 @@ const saveCampaign = async (adId, userId, data, schedule = null) => {
           pricingRows.push({ platform, cpmRule, cpcRule });
         }
 
-        // Close the previous pricing versions; historical analytics keep the
-        // exact rates that applied to their complete event interval.
-        await connection.execute(
-          `UPDATE ad_campaign_pricing
-           SET effective_until_timestamp = ?
-           WHERE campaign_id = ? AND effective_until_timestamp IS NULL`,
-          [now, campaignId],
-        );
-
+        // ad_campaign_pricing stores one current pricing snapshot per
+        // campaign/ad/platform. Campaign schedule and budget live in
+        // ad_campaigns; keep the pricing row aligned with the current rules.
         for (const item of pricingRows) {
           await connection.execute(
             `INSERT INTO ad_campaign_pricing (
-              campaign_id, ad_id, platform, cpm_pricing_rule_id,
-              cpc_pricing_rule_id, currency_code, cpm_rate, cpc_rate,
-              effective_from_timestamp, effective_until_timestamp, campaign_timezone, daily_budget,
-              campaign_start_timestamp, campaign_end_timestamp, business_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)`,
-            [campaignId, adId, item.platform, item.cpmRule.id, item.cpcRule.id,
-             data.currency_code, item.cpmRule.rate, item.cpcRule.rate, now, timezone,
-             data.daily_budget, liveSchedule.startTimestamp, liveSchedule.endTimestamp, ad.business_id],
+               campaign_id, ad_id, platform, cpm_pricing_rule_id,
+               cpc_pricing_rule_id, currency_code, cpm_rate, cpc_rate
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+               cpm_pricing_rule_id = VALUES(cpm_pricing_rule_id),
+               cpc_pricing_rule_id = VALUES(cpc_pricing_rule_id),
+               currency_code = VALUES(currency_code),
+               cpm_rate = VALUES(cpm_rate),
+               cpc_rate = VALUES(cpc_rate)`,
+            [campaignId, adId, item.platform, item.cpmRule.id,
+             item.cpcRule.id, data.currency_code, item.cpmRule.rate, item.cpcRule.rate],
           );
         }
 
@@ -547,21 +544,10 @@ const saveCampaign = async (adId, userId, data, schedule = null) => {
           await connection.execute(
             `
               INSERT INTO ad_campaign_pricing (
-                campaign_id,
-                ad_id,
-                platform,
-                cpm_pricing_rule_id,
-                cpc_pricing_rule_id,
-                currency_code,
-                cpm_rate,
-                cpc_rate,
-                campaign_timezone,
-                daily_budget,
-                campaign_start_timestamp,
-                campaign_end_timestamp,
-                business_id
+                campaign_id, ad_id, platform, cpm_pricing_rule_id,
+                cpc_pricing_rule_id, currency_code, cpm_rate, cpc_rate
               )
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             `,
             [
               campaignId,
@@ -572,11 +558,6 @@ const saveCampaign = async (adId, userId, data, schedule = null) => {
               item.cpmRule.currency_code,
               item.cpmRule.rate,
               item.cpcRule.rate,
-              timezone,
-              data.daily_budget,
-              schedule.startTimestamp,
-              schedule.endTimestamp,
-              ad.business_id,
             ],
           );
         }
@@ -1084,21 +1065,10 @@ const publishCampaign = async (
       await connection.execute(
         `
           INSERT INTO ad_campaign_pricing (
-            campaign_id,
-            ad_id,
-            platform,
-            cpm_pricing_rule_id,
-            cpc_pricing_rule_id,
-            currency_code,
-            cpm_rate,
-            cpc_rate,
-            campaign_timezone,
-            daily_budget,
-            campaign_start_timestamp,
-            campaign_end_timestamp,
-            business_id
+            campaign_id, ad_id, platform, cpm_pricing_rule_id,
+            cpc_pricing_rule_id, currency_code, cpm_rate, cpc_rate
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           campaignId,
@@ -1109,11 +1079,6 @@ const publishCampaign = async (
           cpmRule.currency_code,
           cpmRule.rate,
           cpcRule.rate,
-          ad.timezone,
-          ad.daily_budget,
-          startTimestamp,
-          endTimestamp,
-          ad.business_id,
         ],
       );
     }
@@ -1467,21 +1432,10 @@ const republishCompletedCampaign = async (
       await connection.execute(
         `
           INSERT INTO ad_campaign_pricing (
-            campaign_id,
-            ad_id,
-            platform,
-            cpm_pricing_rule_id,
-            cpc_pricing_rule_id,
-            currency_code,
-            cpm_rate,
-            cpc_rate,
-            campaign_timezone,
-            daily_budget,
-            campaign_start_timestamp,
-            campaign_end_timestamp,
-            business_id
+            campaign_id, ad_id, platform, cpm_pricing_rule_id,
+            cpc_pricing_rule_id, currency_code, cpm_rate, cpc_rate
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           newCampaignId,
@@ -1492,11 +1446,6 @@ const republishCompletedCampaign = async (
           currency.currency_code,
           item.cpmRule.rate,
           item.cpcRule.rate,
-          ad.timezone,
-          ad.daily_budget,
-          startTimestamp,
-          endTimestamp,
-          ad.ad_business_id,
         ],
       );
     }

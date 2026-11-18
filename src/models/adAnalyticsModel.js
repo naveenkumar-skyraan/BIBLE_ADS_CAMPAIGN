@@ -464,11 +464,11 @@ export const processAdAnalyticsBatch = async (payload) => {
             cp.currency_code,
             cp.cpm_rate,
             cp.cpc_rate,
-            cp.campaign_timezone AS pricing_timezone,
-            cp.daily_budget AS pricing_daily_budget,
-            cp.campaign_start_timestamp AS pricing_start_timestamp,
-            cp.campaign_end_timestamp AS pricing_end_timestamp,
-            cp.business_id AS pricing_business_id
+            c.timezone AS pricing_timezone,
+            c.daily_budget AS pricing_daily_budget,
+            c.start_timestamp AS pricing_start_timestamp,
+            c.end_timestamp AS pricing_end_timestamp,
+            c.business_id AS pricing_business_id
 
           FROM ads a
 
@@ -488,11 +488,6 @@ export const processAdAnalyticsBatch = async (payload) => {
             ON cp.campaign_id = c.id
             AND cp.ad_id = a.id
             AND cp.platform = ?
-            AND cp.effective_from_timestamp <= ?
-            AND (
-              cp.effective_until_timestamp IS NULL
-              OR cp.effective_until_timestamp >= ?
-            )
 
           INNER JOIN wallet_balances wb
             ON wb.wallet_id = w.id
@@ -502,7 +497,7 @@ export const processAdAnalyticsBatch = async (payload) => {
           LIMIT 1
           FOR UPDATE
         `,
-        [payload.platform, payload.interval_start, payload.interval_end, item.ad_id],
+        [payload.platform, item.ad_id],
       );
 
       if (adRows.length === 0) {
