@@ -16,8 +16,6 @@ for (const item of countries) {
   if (code && !currencyByCode.has(code)) currencyByCode.set(code, item);
 }
 
-// Cashfree's published International Payment Gateway currency list (plus INR).
-// A merchant must separately have international collections enabled in Cashfree.
 const CASHFREE_PUBLISHED_CURRENCIES = new Set([
   "INR", "AUD", "BRL", "CAD", "CNY", "CZK", "EUR", "HKD", "HUF",
   "ILS", "JPY", "MYR", "MXN", "TWD", "NZD", "NOK", "PHP", "PLN",

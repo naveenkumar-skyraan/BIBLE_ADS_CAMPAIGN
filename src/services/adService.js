@@ -150,19 +150,24 @@ export const getAd = async (adId, userId) => {
 export const updateAd = async (adId, userId, data, file) => {
   const existingAd = await model.getAdTypeInfoForUpdate(adId, userId);
   if (!existingAd) {
-    throw createError("Ad not found or not editable. Only draft, active and paused ads can be edited.", 404);
+    throw createError(
+      "Ad not found or not editable. Only draft, active and paused ads can be edited.",
+      404,
+    );
   }
 
-  // Ad type is immutable after creation. Subtypes remain editable only within
-  // the original ad type.
-  if (Object.hasOwn(data, "ad_type_id")) {
-    throw createError("Ad type cannot be changed after the ad is created.", 400);
-  }
-  const effectiveAdTypeId = Number(existingAd.ad_type_id);
+  const effectiveAdTypeId = Object.hasOwn(data, "ad_type_id")
+    ? data.ad_type_id
+    : existingAd.ad_type_id;
+
   const effectiveSubtypeId = Object.hasOwn(data, "ad_subtype_id")
     ? data.ad_subtype_id
     : existingAd.ad_subtype_id;
-  const validatedSubtypeId = await prepareAdSubtype(effectiveAdTypeId, effectiveSubtypeId);
+
+  const validatedSubtypeId = await prepareAdSubtype(
+    effectiveAdTypeId,
+    effectiveSubtypeId,
+  );
 
   if (data.business_id !== undefined) {
     const [businessRows] = await db.execute(
@@ -170,21 +175,41 @@ export const updateAd = async (adId, userId, data, file) => {
        WHERE id = ? AND user_id = ? AND is_deleted = 0 LIMIT 1`,
       [data.business_id, userId],
     );
-    if (!businessRows.length) throw createError("Selected business is invalid or does not belong to you.", 400);
+    if (!businessRows.length)
+      throw createError(
+        "Selected business is invalid or does not belong to you.",
+        400,
+      );
   }
   if (data.objective_id !== undefined) {
-    await validateReference("ad_objectives", data.objective_id, "advertising objective");
+    await validateReference(
+      "ad_objectives",
+      data.objective_id,
+      "advertising objective",
+    );
   }
   if (data.action_button_type_id != null) {
-    await validateReference("ad_action_button_types", data.action_button_type_id, "action button");
+    await validateReference(
+      "ad_action_button_types",
+      data.action_button_type_id,
+      "action button",
+    );
   }
 
-  const updateData = { ...data, ad_subtype_id: validatedSubtypeId };
+  const updateData = {
+    ...data,
+    ad_type_id: Number(effectiveAdTypeId),
+    ad_subtype_id: validatedSubtypeId,
+  };
+
   const fileData = file ? prepareFile(file) : null;
   const result = await model.updateAd(adId, userId, updateData, fileData);
 
   if (result.notFound) {
-    throw createError("Ad not found or not editable. Only draft, active and paused ads can be edited.", 404);
+    throw createError(
+      "Ad not found or not editable. Only draft, active and paused ads can be edited.",
+      404,
+    );
   }
   return model.getAdById(adId, userId);
 };
@@ -199,10 +224,12 @@ export const getAdDetails = async (adId, userId, period = "this_month") => {
     const currency = getCurrencyMetadata(result.campaign.currency_code);
     result.campaign.currency_symbol = currency.currency_symbol;
     result.performance.currency_symbol = currency.currency_symbol;
-    result.performance.spend_by_currency = result.performance.spend_by_currency.map((item) => ({
-      ...item,
-      currency_symbol: getCurrencyMetadata(item.currency_code).currency_symbol,
-    }));
+    result.performance.spend_by_currency =
+      result.performance.spend_by_currency.map((item) => ({
+        ...item,
+        currency_symbol: getCurrencyMetadata(item.currency_code)
+          .currency_symbol,
+      }));
   }
   return result;
 };

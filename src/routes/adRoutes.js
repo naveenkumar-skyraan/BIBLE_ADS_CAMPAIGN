@@ -522,6 +522,10 @@ router.get("/:id", middleware, getAdController);
  *                 type: string
  *                 maxLength: 500
  *                 example: Updated advertisement description.
+ *               ad_type_id:
+ *                 type: integer
+ *                 example: 2
+ *                 description: Advertisement type ID.
  *               ad_subtype_id:
  *                 type: integer
  *                 nullable: true
