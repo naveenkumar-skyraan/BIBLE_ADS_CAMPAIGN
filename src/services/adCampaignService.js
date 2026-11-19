@@ -389,35 +389,14 @@ const getCampaignDetails = async (adId, userId) => {
 };
 
 const republishCompletedAd = async (adId, userId) => {
-  const completedCampaign = await model.getCompletedCampaignForRepublish(adId, userId);
-  if (!completedCampaign) {
-    throw createError("Only completed advertisements with a completed campaign can be republished.", 409);
-  }
-  if (completedCampaign.moderation_status !== "none") {
-    throw createError("This advertisement cannot be republished while it is blocked or under moderation.", 409);
-  }
-
-  const timezone = validateTimezone(completedCampaign.timezone);
-  const durationDays = Number(completedCampaign.duration_days);
-  if (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > 3660) {
-    throw createError("The completed campaign does not contain a valid duration for republishing.", 409);
-  }
-
-  // A republished campaign starts a fresh run immediately and keeps the
-  // previous campaign's duration/budget. Its old campaign row and spend
-  // history remain intact under the previous campaign ID.
-  const schedule = buildCampaignSchedule({
-    duration_type: "days",
-    duration_days: durationDays,
-    timezone,
-  });
-
-  const result = await model.republishCompletedCampaign(adId, userId, {
-    durationDays,
-    ...schedule,
-  });
-
-  return { ...result, timezone, timestamps_timezone: "UTC" };
+  const result = await model.republishCompletedCampaign(adId, userId);
+  return {
+    ...result,
+    timezone: result.campaign.timezone,
+    timestamps_timezone: "UTC",
+    resume_step: 1,
+    next_step: 1,
+  };
 };
 
 const getCampaignEstimation = async (adId, userId) => {

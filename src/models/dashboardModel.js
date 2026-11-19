@@ -218,8 +218,16 @@ const getDashboardOverview = async ({
           SUM(CASE WHEN a.moderation_status <> 'under_review' AND c.status = 'draft' THEN 1 ELSE 0 END) AS draft
         FROM ad_campaigns c
         INNER JOIN ads a
-          ON a.campaign_id = c.id
-          AND a.user_id = c.user_id
+          ON a.user_id = c.user_id
+          AND (
+            a.campaign_id = c.id
+            OR EXISTS (
+              SELECT 1
+              FROM ad_campaign_pricing historical_pricing
+              WHERE historical_pricing.campaign_id = c.id
+                AND historical_pricing.ad_id = a.id
+            )
+          )
         WHERE c.user_id = ?
           AND c.business_id = ?
           AND c.is_deleted = 0
@@ -255,6 +263,7 @@ const getDashboardOverview = async ({
           a.title,
           a.description,
           a.status AS ad_status,
+          c.status AS campaign_status,
           a.moderation_status,
           a.objective_id,
           o.name AS objective_name,
@@ -276,8 +285,16 @@ const getDashboardOverview = async ({
           COALESCE(SUM(ds.wallet_debit), 0) AS wallet_debit
         FROM ad_campaigns c
         INNER JOIN ads a
-          ON a.campaign_id = c.id
-          AND a.user_id = c.user_id
+          ON a.user_id = c.user_id
+          AND (
+            a.campaign_id = c.id
+            OR EXISTS (
+              SELECT 1
+              FROM ad_campaign_pricing historical_pricing
+              WHERE historical_pricing.campaign_id = c.id
+                AND historical_pricing.ad_id = a.id
+            )
+          )
         LEFT JOIN ad_objectives o
           ON o.id = a.objective_id
         LEFT JOIN ad_campaign_daily_spend ds
@@ -292,7 +309,7 @@ const getDashboardOverview = async ({
           AND c.is_deleted = 0
           AND a.is_deleted = 0
         GROUP BY
-          c.id, a.id, a.title, a.description, a.status,
+          c.id, a.id, a.title, a.description, a.status, c.status,
           a.moderation_status, a.objective_id, o.name, c.currency_code
         HAVING
           SUM(COALESCE(ds.impressions, 0)) > 0
@@ -493,7 +510,8 @@ const getDashboardOverview = async ({
       image_url: row.image_url,
       objective_id: Number(row.objective_id),
       objective_name: row.objective_name,
-      status: row.ad_status,
+      status: row.campaign_status,
+      ad_status: row.ad_status,
       moderation_status: row.moderation_status,
       impressions: numeric(row.impressions),
       clicks: numeric(row.clicks),

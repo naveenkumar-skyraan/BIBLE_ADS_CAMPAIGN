@@ -82,9 +82,7 @@ const adCampaignController = {
 
       return res.status(200).json({
         success: true,
-        message: result.ad_status === "draft"
-          ? "Completed advertisement republished as a scheduled campaign."
-          : "Completed advertisement republished successfully.",
+        message: "Completed advertisement is ready for republishing. Continue with step 1.",
         data: result,
       });
     } catch (error) {

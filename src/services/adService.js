@@ -151,7 +151,7 @@ export const updateAd = async (adId, userId, data, file) => {
   const existingAd = await model.getAdTypeInfoForUpdate(adId, userId);
   if (!existingAd) {
     throw createError(
-      "Ad not found or not editable. Draft, active, paused and completed ads can be edited.",
+      "Ad not found or not editable. Draft, active and paused ads can be edited. Completed ads must be republished first.",
       404,
     );
   }
@@ -213,7 +213,7 @@ export const updateAd = async (adId, userId, data, file) => {
 
   if (result.notFound) {
     throw createError(
-      "Ad not found or not editable. Draft, active, paused and completed ads can be edited.",
+      "Ad not found or not editable. Draft, active and paused ads can be edited. Completed ads must be republished first.",
       404,
     );
   }

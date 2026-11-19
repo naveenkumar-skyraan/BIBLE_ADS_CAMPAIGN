@@ -14,7 +14,8 @@ export const saveTarget = async (adId, userId, data) => {
        WHERE id = ?
          AND user_id = ?
          AND status IN ('draft', 'active', 'paused')
-         AND moderation_status <> 'under_review'
+         AND COALESCE(moderation_status, 'none') NOT IN ('blocked', 'under_review')
+         AND is_cancelled = 0
          AND is_deleted = 0
        LIMIT 1
        FOR UPDATE`,
@@ -67,7 +68,7 @@ export const saveTarget = async (adId, userId, data) => {
     // Keep the highest completed step when the user navigates backwards.
     await connection.execute(
       `UPDATE ads
-       SET last_completed_step = GREATEST(COALESCE(last_completed_step, 1), 2),
+       SET last_completed_step = GREATEST(COALESCE(last_completed_step, 0), 2),
            updated_at = CURRENT_TIMESTAMP
        WHERE id = ?
          AND user_id = ?

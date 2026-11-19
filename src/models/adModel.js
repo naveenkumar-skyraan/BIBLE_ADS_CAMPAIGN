@@ -101,7 +101,7 @@ export const getAdById = async (adId, userId) => {
             a.moderation_status,
             a.is_cancelled,
             a.last_completed_step,
-            LEAST(a.last_completed_step + 1, 3) AS resume_step,
+            LEAST(COALESCE(a.last_completed_step, 0) + 1, 3) AS resume_step,
             CASE
               WHEN a.status = 'draft'
                 AND c.status = 'draft'
@@ -165,8 +165,8 @@ export const updateAd = async (adId, userId, data, fileData = null) => {
              FROM ads
             WHERE id = ?
   AND user_id = ?
-  AND status IN ('draft', 'active', 'paused', 'completed')
-  AND moderation_status <> 'under_review'
+  AND status IN ('draft', 'active', 'paused')
+  AND COALESCE(moderation_status, 'none') NOT IN ('blocked', 'under_review')
   AND is_cancelled = 0
   AND is_deleted = 0
 LIMIT 1
@@ -241,6 +241,16 @@ FOR UPDATE`,
         ],
       );
     }
+
+    // Step 1 is considered complete only after the ad submission is saved.
+    // Republish starts with last_completed_step = 0, so this advances it to 1.
+    await connection.execute(
+      `UPDATE ads
+       SET last_completed_step = GREATEST(COALESCE(last_completed_step, 0), 1),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND user_id = ? AND status = 'draft' AND is_deleted = 0`,
+      [adId, userId],
+    );
 
     await connection.commit();
 
@@ -565,8 +575,8 @@ export const getAdTypeInfoForUpdate = async (adId, userId) => {
      WHERE id = ?
        AND user_id = ?
        AND is_deleted = 0
-       AND status IN ('draft', 'active', 'paused', 'completed')
-       AND moderation_status <> 'under_review'
+       AND status IN ('draft', 'active', 'paused')
+       AND COALESCE(moderation_status, 'none') NOT IN ('blocked', 'under_review')
        AND is_cancelled = 0
      LIMIT 1`,
     [adId, userId],
@@ -639,7 +649,7 @@ export const getMyAds = async (userId, { status, search, limit, offset }) => {
         a.platform,
         a.status AS ad_status,
         a.last_completed_step,
-        LEAST(a.last_completed_step + 1, 3) AS resume_step,
+        LEAST(COALESCE(a.last_completed_step, 0) + 1, 3) AS resume_step,
         CASE
           WHEN a.status = 'draft'
             AND c.status = 'draft'

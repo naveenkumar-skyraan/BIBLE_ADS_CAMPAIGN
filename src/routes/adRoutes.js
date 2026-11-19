@@ -111,16 +111,16 @@ const router = express.Router();
  *           example: draft
  *         last_completed_step:
  *           type: integer
- *           minimum: 1
+ *           minimum: 0
  *           maximum: 3
  *           example: 2
- *           description: Highest wizard step successfully saved (1=ad submission, 2=location, 3=campaign).
+ *           description: Highest wizard step successfully saved (0=none yet during republish, 1=ad submission, 2=location, 3=campaign).
  *         resume_step:
  *           type: integer
- *           minimum: 2
+ *           minimum: 1
  *           maximum: 3
  *           example: 3
- *           description: Next incomplete step, capped at step 3; completed step 3 resumes at step 3.
+ *           description: Next incomplete wizard step, capped at step 3; republish drafts resume at step 1.
  *         is_scheduled:
  *           type: boolean
  *           example: false
@@ -989,11 +989,14 @@ router.post(
  *   post:
  *     summary: Republish a completed advertisement
  *     description: >
- *       Starts a new campaign run for a completed ad using its previous daily
- *       budget and duration. The new run starts immediately, receives a new
- *       campaign_code, and snapshots the currently applicable CPM/CPC pricing.
- *       The previous completed campaign and spend history are retained.
- *       Blocked or under-review advertisements cannot be republished.
+ *       Starts a new draft campaign for a completed ad and redirects the user
+ *       to the editable three-step workflow: ad submission, location targeting,
+ *       and campaign configuration. The new draft is prefilled from the prior
+ *       campaign where possible, but its budget, duration, dates, ad content,
+ *       objective, platform and location can all be changed before final
+ *       submission. No campaign is published and no wallet commitment is made
+ *       by this endpoint. The previous completed campaign, pricing snapshots
+ *       and spend history are retained. Blocked and under-review ads are rejected.
  *     tags: [Ads]
  *     security:
  *       - bearerAuth: []
@@ -1005,9 +1008,9 @@ router.post(
  *         description: Advertisement ID
  *     responses:
  *       200:
- *         description: A new campaign run was created and linked to the advertisement.
+ *         description: A new draft campaign was created. The response returns resume_step=1.
  *       400:
- *         description: Insufficient wallet balance or no applicable pricing rule.
+ *         description: Invalid campaign or wallet state.
  *       401:
  *         description: Missing, invalid, or expired access token.
  *       404:
