@@ -1430,7 +1430,7 @@ export const cancelActiveAd = async (adId, userId, data) => {
             other_reason,
             cancelled_at
           )
-          VALUES (?, ?, ?, ?, ?, NULL)
+          VALUES (?, ?, ?, ?, ?, UNIX_TIMESTAMP())
         `,
         [
           ad.campaign_id,
