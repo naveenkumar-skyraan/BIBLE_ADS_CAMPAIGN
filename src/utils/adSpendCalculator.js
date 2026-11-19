@@ -1,5 +1,7 @@
-const PLATFORM_FEE_PERCENT = 30;
-const GST_PERCENT = 18;
+const PLATFORM_FEE_PERCENT = Number(process.env.PLATFORM_FEE_PERCENT || 30);
+// Retained only as a compatibility default for existing tests/callers. Live
+// billing passes the country tax rate from the campaign pricing snapshot.
+const GST_PERCENT = Number(process.env.DEFAULT_TAX_PERCENT || 18);
 
 // All internal wallet and accrual amounts use millionths of the currency unit.
 // This keeps spend arithmetic stable for currencies with 0, 2 or 3 minor units.

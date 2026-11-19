@@ -1,6 +1,9 @@
 import db from "../configs/database/db.js";
 import { DateTime } from "luxon";
-import { decimalToMicros, microsToDecimal } from "../utils/adSpendCalculator.js";
+import {
+  decimalToMicros,
+  microsToDecimal,
+} from "../utils/adSpendCalculator.js";
 import { getWalletCommitmentSummary } from "../utils/campaignWalletFunding.js";
 
 const createError = (message, statusCode = 400, details = null) => {
@@ -248,31 +251,70 @@ FOR UPDATE`,
   }
 };
 
-export const getAdDetailsForView = async (adId, userId, period = "this_month") => {
-  if (!["this_month", "last_month", "all_time"].includes(period)) {
-    throw createError("Invalid performance period.", 400);
-  }
-  const [timezoneRows] = await db.execute(
-    `SELECT c.timezone
-     FROM ads a LEFT JOIN ad_campaigns c ON c.id = a.campaign_id AND c.user_id = a.user_id
-     WHERE a.id = ? AND a.user_id = ? AND a.is_deleted = 0 LIMIT 1`,
-    [adId, userId],
-  );
-  if (!timezoneRows.length) return null;
-  const zone = timezoneRows[0].timezone || "UTC";
-  const now = DateTime.now().setZone(zone);
-  let performanceWhere = "1 = 1";
-  const performanceValues = [];
-  if (period === "this_month") {
-    performanceWhere = "ds.campaign_local_date BETWEEN ? AND ?";
-    performanceValues.push(now.startOf("month").toISODate(), now.toISODate());
-  } else if (period === "last_month") {
-    performanceWhere = "ds.campaign_local_date BETWEEN ? AND ?";
-    performanceValues.push(
-      now.minus({ months: 1 }).startOf("month").toISODate(),
-      now.startOf("month").minus({ days: 1 }).toISODate(),
+export const getAdDetailsForView = async (
+  adId,
+  userId,
+  period = "this_month",
+) => {
+  const allowedPeriods = [
+    "this_month",
+    "this_year",
+    "this_week",
+    "last_month",
+    "last_year",
+  ];
+
+  if (!allowedPeriods.includes(period)) {
+    throw createError(
+      `Invalid performance period. Allowed values: ${allowedPeriods.join(", ")}.`,
+      400,
     );
   }
+
+  const [timezoneRows] = await db.execute(
+    `SELECT c.timezone
+     FROM ads a
+     LEFT JOIN ad_campaigns c
+       ON c.id = a.campaign_id AND c.user_id = a.user_id
+     WHERE a.id = ? AND a.user_id = ? AND a.is_deleted = 0
+     LIMIT 1`,
+    [adId, userId],
+  );
+
+  if (!timezoneRows.length) return null;
+
+  const zone = timezoneRows[0].timezone || "UTC";
+  const now = DateTime.now().setZone(zone);
+
+  let startDate;
+  let endDate = now.toISODate();
+
+  switch (period) {
+    case "this_month":
+      startDate = now.startOf("month").toISODate();
+      break;
+
+    case "this_year":
+      startDate = now.startOf("year").toISODate();
+      break;
+
+    case "this_week":
+      startDate = now.startOf("week").toISODate();
+      break;
+
+    case "last_month":
+      startDate = now.minus({ months: 1 }).startOf("month").toISODate();
+      endDate = now.startOf("month").minus({ days: 1 }).toISODate();
+      break;
+
+    case "last_year":
+      startDate = now.minus({ years: 1 }).startOf("year").toISODate();
+      endDate = now.startOf("year").minus({ days: 1 }).toISODate();
+      break;
+  }
+
+  const performanceWhere = "ds.campaign_local_date BETWEEN ? AND ?";
+  const performanceValues = [startDate, endDate];
 
   const [rows] = await db.execute(
     `
@@ -361,13 +403,15 @@ export const getAdDetailsForView = async (adId, userId, period = "this_month") =
   if (!rows.length) return null;
   const row = rows[0];
   const spendByCurrency = row.campaign_id
-    ? (await db.execute(
-        `SELECT currency_code, SUM(total_charge) AS spend
+    ? (
+        await db.execute(
+          `SELECT currency_code, SUM(total_charge) AS spend
          FROM ad_campaign_daily_spend ds
          WHERE campaign_id = ? AND ${performanceWhere}
          GROUP BY currency_code`,
-        [...performanceValues, row.campaign_id],
-      ))[0].map((item) => ({
+          [...performanceValues, row.campaign_id],
+        )
+      )[0].map((item) => ({
         currency_code: item.currency_code,
         spend: String(item.spend),
       }))
@@ -395,36 +439,46 @@ export const getAdDetailsForView = async (adId, userId, period = "this_month") =
       moderation_status: row.moderation_status,
       created_at: row.ad_created_at,
       updated_at: row.ad_updated_at,
-      media: row.media_id ? {
-        id: row.media_id, type: row.media_type, url: row.file_url,
-        file_name: row.file_name, mime_type: row.mime_type, file_size: row.file_size,
-      } : null,
+      media: row.media_id
+        ? {
+            id: row.media_id,
+            type: row.media_type,
+            url: row.file_url,
+            file_name: row.file_name,
+            mime_type: row.mime_type,
+            file_size: row.file_size,
+          }
+        : null,
     },
-    campaign: row.campaign_id ? {
-      id: row.campaign_id,
-      campaign_code: row.campaign_code,
-      status: row.campaign_status,
-      currency_code: row.currency_code,
-      total_budget: row.total_budget,
-      daily_budget: row.daily_budget,
-      duration_type: row.duration_type,
-      duration_days: row.duration_days,
-      start_date: row.start_date,
-      end_date: row.end_date,
-      start_timestamp: row.start_timestamp,
-      end_timestamp: row.end_timestamp,
-      timezone: row.timezone,
-      created_at: row.campaign_created_at,
-    } : null,
-    location: row.location_name ? {
-      location_name: row.location_name,
-      place_id: row.place_id,
-      latitude: Number(row.latitude),
-      longitude: Number(row.longitude),
-      timezone: row.location_timezone,
-      is_radius_enabled: Boolean(row.is_radius_enabled),
-      radius_km: row.radius_km === null ? null : Number(row.radius_km),
-    } : null,
+    campaign: row.campaign_id
+      ? {
+          id: row.campaign_id,
+          campaign_code: row.campaign_code,
+          status: row.campaign_status,
+          currency_code: row.currency_code,
+          total_budget: row.total_budget,
+          daily_budget: row.daily_budget,
+          duration_type: row.duration_type,
+          duration_days: row.duration_days,
+          start_date: row.start_date,
+          end_date: row.end_date,
+          start_timestamp: row.start_timestamp,
+          end_timestamp: row.end_timestamp,
+          timezone: row.timezone,
+          created_at: row.campaign_created_at,
+        }
+      : null,
+    location: row.location_name
+      ? {
+          location_name: row.location_name,
+          place_id: row.place_id,
+          latitude: Number(row.latitude),
+          longitude: Number(row.longitude),
+          timezone: row.location_timezone,
+          is_radius_enabled: Boolean(row.is_radius_enabled),
+          radius_km: row.radius_km === null ? null : Number(row.radius_km),
+        }
+      : null,
     performance: {
       period,
       impressions: Number(row.impressions),
@@ -776,7 +830,10 @@ export const resumeAd = async (adId, userId) => {
       throw createError("Only paused ads can be resumed.", 409);
     }
     if (ad.moderation_status !== "none") {
-      throw createError("This ad cannot be resumed because it is under moderation.", 409);
+      throw createError(
+        "This ad cannot be resumed because it is under moderation.",
+        409,
+      );
     }
     if (ad.pause_reason === "daily_budget") {
       throw createError(
@@ -795,7 +852,8 @@ export const resumeAd = async (adId, userId) => {
     ) {
       throw createError("Campaign is not within its scheduled period.", 409);
     }
-    if (!ad.currency_code) throw createError("Campaign currency is missing.", 409);
+    if (!ad.currency_code)
+      throw createError("Campaign currency is missing.", 409);
 
     const walletId = walletRows[0].id;
     await connection.execute(
@@ -806,7 +864,8 @@ export const resumeAd = async (adId, userId) => {
       `SELECT balance FROM wallet_balances WHERE wallet_id = ? AND currency_code = ? FOR UPDATE`,
       [walletId, ad.currency_code],
     );
-    if (!balanceRows.length) throw createError("Wallet currency balance not found.", 404);
+    if (!balanceRows.length)
+      throw createError("Wallet currency balance not found.", 404);
 
     const funding = await getWalletCommitmentSummary(
       connection,
@@ -852,7 +911,8 @@ export const resumeAd = async (adId, userId) => {
       `,
       [adId, userId],
     );
-    if (adUpdate.affectedRows !== 1) throw createError("Ad could not be resumed.", 409);
+    if (adUpdate.affectedRows !== 1)
+      throw createError("Ad could not be resumed.", 409);
 
     await connection.execute(
       `
@@ -1070,7 +1130,8 @@ export const getPausedAdDeletePreview = async (adId, userId) => {
 
   const budgetMicros = decimalToMicros(row.total_budget);
   const spentMicros = decimalToMicros(row.amount_spent);
-  const remainingMicros = budgetMicros > spentMicros ? budgetMicros - spentMicros : 0n;
+  const remainingMicros =
+    budgetMicros > spentMicros ? budgetMicros - spentMicros : 0n;
 
   return {
     ad_id: String(row.ad_id),
@@ -1087,7 +1148,8 @@ export const getPausedAdDeletePreview = async (adId, userId) => {
   };
 };
 
-export const deleteAd = async (adId, userId, data = {}) => {
+
+export const deleteAd = async (adId, userId) => {
   const connection = await db.getConnection();
 
   try {
@@ -1125,58 +1187,40 @@ export const deleteAd = async (adId, userId, data = {}) => {
     const ad = rows[0];
     let cancellationId = null;
 
-    // Active campaigns use the same DELETE endpoint, while preserving the
-    // existing required cancellation-feedback flow. Other statuses need no reason.
+    // Active advertisements must have a previously submitted
+    // cancellation reason.
     if (ad.ad_status === "active") {
-      if (!data.reason_id) {
+      if (!ad.campaign_id || ad.campaign_status !== "active") {
         await connection.rollback();
         return { invalidState: true };
       }
 
-      const [reasonRows] = await connection.execute(
+      const [pendingRows] = await connection.execute(
         `
-          SELECT id, requires_other
-          FROM ad_cancellation_reasons
-          WHERE id = ? AND is_active = 1
+          SELECT id
+          FROM ad_campaign_cancellations
+          WHERE campaign_id = ?
+            AND ad_id = ?
+            AND user_id = ?
+            AND cancelled_at IS NULL
+          ORDER BY id DESC
           LIMIT 1
           FOR UPDATE
         `,
-        [data.reason_id],
+        [ad.campaign_id, adId, userId],
       );
 
-      if (!reasonRows.length) {
+      if (!pendingRows.length) {
         await connection.rollback();
-        return { invalidReason: true };
+        return { missingCancellation: true };
       }
 
-      const reason = reasonRows[0];
-      const otherReason = data.other_reason?.trim() || null;
-      if (Number(reason.requires_other) === 1 && !otherReason) {
-        await connection.rollback();
-        return { missingOtherReason: true };
-      }
-      if (!ad.campaign_id) {
-        await connection.rollback();
-        return { invalidState: true };
-      }
-
-      const [feedbackResult] = await connection.execute(
-        `
-          INSERT INTO ad_campaign_cancellations (
-            campaign_id, ad_id, user_id, reason_id, other_reason, cancelled_at
-          ) VALUES (?, ?, ?, ?, ?, ?)
-        `,
-        [
-          ad.campaign_id, ad.ad_id, userId, reason.id,
-          Number(reason.requires_other) === 1 ? otherReason : null,
-          Math.floor(Date.now() / 1000),
-        ],
-      );
-      cancellationId = String(feedbackResult.insertId);
+      cancellationId = pendingRows[0].id;
     }
 
     const deletedAt = Math.floor(Date.now() / 1000);
 
+    // Delete campaign and stop billing.
     if (ad.campaign_id) {
       const [campaignResult] = await connection.execute(
         `
@@ -1198,6 +1242,7 @@ export const deleteAd = async (adId, userId, data = {}) => {
       }
     }
 
+    // Soft-delete the associated ad.
     const [adResult] = await connection.execute(
       `
         UPDATE ads
@@ -1216,15 +1261,44 @@ export const deleteAd = async (adId, userId, data = {}) => {
       throw new Error("Ad could not be deleted.");
     }
 
+    // Mark the existing cancellation record as confirmed.
+    if (cancellationId !== null) {
+      const [cancellationResult] = await connection.execute(
+        `
+          UPDATE ad_campaign_cancellations
+          SET cancelled_at = ?
+          WHERE id = ?
+            AND campaign_id = ?
+            AND ad_id = ?
+            AND user_id = ?
+            AND cancelled_at IS NULL
+        `,
+        [
+          deletedAt,
+          cancellationId,
+          ad.campaign_id,
+          adId,
+          userId,
+        ],
+      );
+
+      if (cancellationResult.affectedRows !== 1) {
+        throw new Error("Cancellation confirmation could not be recorded.");
+      }
+    }
+
     await connection.commit();
 
     return {
       notFound: false,
-      invalidState: false,
       ad_id: String(adId),
-      campaign_id: ad.campaign_id == null ? null : String(ad.campaign_id),
+      campaign_id: ad.campaign_id == null
+        ? null
+        : String(ad.campaign_id),
       campaign_code: ad.campaign_code || null,
-      cancellation_id: cancellationId,
+      cancellation_id: cancellationId === null
+        ? null
+        : String(cancellationId),
       deleted_at: deletedAt,
     };
   } catch (error) {
@@ -1234,6 +1308,8 @@ export const deleteAd = async (adId, userId, data = {}) => {
     connection.release();
   }
 };
+
+
 
 export const cancelActiveAd = async (adId, userId, data) => {
   const connection = await db.getConnection();
@@ -1247,44 +1323,38 @@ export const cancelActiveAd = async (adId, userId, data) => {
           a.id AS ad_id,
           a.campaign_id,
           a.status AS ad_status,
-          a.is_deleted AS ad_is_deleted,
-
           c.user_id,
           c.campaign_code,
-          c.status AS campaign_status,
-          c.is_deleted AS campaign_is_deleted
-
+          c.status AS campaign_status
         FROM ads a
-
         INNER JOIN ad_campaigns c
           ON c.id = a.campaign_id
           AND c.user_id = a.user_id
-
         WHERE a.id = ?
           AND a.user_id = ?
           AND a.is_deleted = 0
           AND c.is_deleted = 0
-
         LIMIT 1
         FOR UPDATE
       `,
       [adId, userId],
     );
 
-    if (rows.length === 0) {
+    if (!rows.length) {
       await connection.rollback();
       return { notFound: true };
     }
 
     const ad = rows[0];
 
-    if (ad.ad_status !== "active" || ad.campaign_status !== "active") {
+    if (
+      ad.ad_status !== "active" ||
+      ad.campaign_status !== "active"
+    ) {
       await connection.rollback();
       return { invalidState: true };
     }
 
-    // Resolve the selected reason from the master table. The mobile app sends
-    // only the stable ID; display text remains fully database-managed.
     const [reasonRows] = await connection.execute(
       `
         SELECT id, reason_text, requires_other
@@ -1292,7 +1362,6 @@ export const cancelActiveAd = async (adId, userId, data) => {
         WHERE id = ?
           AND is_active = 1
         LIMIT 1
-        FOR UPDATE
       `,
       [data.reason_id],
     );
@@ -1310,85 +1379,91 @@ export const cancelActiveAd = async (adId, userId, data) => {
       return { missingOtherReason: true };
     }
 
-    const cancelledAt = Math.floor(Date.now() / 1000);
-
-    // 1. Record cancellation feedback using the stable master-table ID.
-    // reason_code is retained as a nullable legacy column by the migration
-    // so historical rows remain intact; new rows use reason_id only.
-    const [cancellationResult] = await connection.execute(
+    // Check for an existing pending cancellation request.
+    const [pendingRows] = await connection.execute(
       `
-        INSERT INTO ad_campaign_cancellations (
-          campaign_id,
-          ad_id,
-          user_id,
-          reason_id,
-          other_reason,
-          cancelled_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?)
-      `,
-      [
-        ad.campaign_id,
-        ad.ad_id,
-        userId,
-        selectedReason.id,
-        Number(selectedReason.requires_other) === 1 ? otherReason : null,
-        cancelledAt,
-      ],
-    );
-
-    // 2. Soft-delete the campaign and stop billing.
-    const [campaignResult] = await connection.execute(
-      `
-        UPDATE ad_campaigns
-        SET
-          is_deleted = 1,
-          deleted_at = ?,
-          billing_stopped_at = ?,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
+        SELECT id
+        FROM ad_campaign_cancellations
+        WHERE campaign_id = ?
+          AND ad_id = ?
           AND user_id = ?
-          AND is_deleted = 0
-          AND status = 'active'
+          AND cancelled_at IS NULL
+        ORDER BY id DESC
+        LIMIT 1
+        FOR UPDATE
       `,
-      [cancelledAt, cancelledAt, ad.campaign_id, userId],
+      [ad.campaign_id, adId, userId],
     );
 
-    if (campaignResult.affectedRows !== 1) {
-      throw new Error("Campaign cancellation failed.");
+    let cancellationId;
+
+    if (pendingRows.length) {
+      // Update the existing pending request instead of creating duplicates.
+      cancellationId = pendingRows[0].id;
+
+      await connection.execute(
+        `
+          UPDATE ad_campaign_cancellations
+          SET reason_id = ?,
+              other_reason = ?
+          WHERE id = ?
+            AND user_id = ?
+            AND cancelled_at IS NULL
+        `,
+        [
+          selectedReason.id,
+          Number(selectedReason.requires_other) === 1
+            ? otherReason
+            : null,
+          cancellationId,
+          userId,
+        ],
+      );
+    } else {
+      const [insertResult] = await connection.execute(
+        `
+          INSERT INTO ad_campaign_cancellations (
+            campaign_id,
+            ad_id,
+            user_id,
+            reason_id,
+            other_reason,
+            cancelled_at
+          )
+          VALUES (?, ?, ?, ?, ?, NULL)
+        `,
+        [
+          ad.campaign_id,
+          adId,
+          userId,
+          selectedReason.id,
+          Number(selectedReason.requires_other) === 1
+            ? otherReason
+            : null,
+        ],
+      );
+
+      cancellationId = insertResult.insertId;
     }
 
-    // 3. Soft-delete the associated ad.
-    const [adResult] = await connection.execute(
-      `
-        UPDATE ads
-        SET
-          is_deleted = 1,
-          deleted_at = ?,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-          AND user_id = ?
-          AND is_deleted = 0
-          AND status = 'active'
-      `,
-      [cancelledAt, adId, userId],
-    );
-
-    if (adResult.affectedRows !== 1) {
-      throw new Error("Ad cancellation failed.");
-    }
+    // IMPORTANT:
+    // Do not delete the ad.
+    // Do not delete the campaign.
+    // Do not change either status.
+    // Do not stop billing.
 
     await connection.commit();
 
     return {
       notFound: false,
       invalidState: false,
+      ad_id: String(adId),
       campaign_id: String(ad.campaign_id),
       campaign_code: ad.campaign_code,
-      ad_id: String(adId),
-      cancellation_id: String(cancellationResult.insertId),
+      cancellation_id: String(cancellationId),
       reason_id: Number(selectedReason.id),
-      cancelled_at: cancelledAt,
+      cancellation_submitted: true,
+      deletion_confirmed: false,
     };
   } catch (error) {
     await connection.rollback();
@@ -1397,3 +1472,4 @@ export const cancelActiveAd = async (adId, userId, data) => {
     connection.release();
   }
 };
+

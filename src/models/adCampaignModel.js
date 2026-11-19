@@ -5,6 +5,8 @@ import {
   microsToDecimal,
 } from "../utils/adSpendCalculator.js";
 import { getCurrencyForCountry } from "../utils/currencyConfig.js";
+import { convertUsdRate } from "../utils/fxRateService.js";
+import { getBusinessTaxConfiguration } from "../utils/taxConfig.js";
 import { insertCampaignWithUniqueCode } from "../utils/campaignCode.js";
 import {
   calculateWalletPayableMicros,
@@ -44,7 +46,7 @@ const getApplicablePricingRule = async (
         effective_until
       FROM ad_pricing_rules
       WHERE billing_model = ?
-        AND currency_code = ?
+        AND currency_code = 'USD'
         AND is_active = 1
 
         AND effective_from <= CURRENT_TIMESTAMP()
@@ -80,7 +82,6 @@ const getApplicablePricingRule = async (
     `,
     [
       billingModel,
-      ad.currency_code,
       ad.objective_id,
       ad.ad_type_id,
       ad.ad_subtype_id,
@@ -94,12 +95,171 @@ const getApplicablePricingRule = async (
 
   if (rows.length === 0) {
     throw createError(
-      `No active ${billingModel.toUpperCase()} pricing rule found for ${platform}.`,
+      `No active ${billingModel.toUpperCase()} pricing rule found for ${platform.toUpperCase()} in USD (the reference currency) for business country ${ad.country_code}. Configure an active USD pricing rule for this platform.`,
       400,
     );
   }
 
-  return rows[0];
+  const baseRule = rows[0];
+  const targetCurrency = String(ad.currency_code || "USD").toUpperCase();
+  const converted = await convertUsdRate(baseRule.rate, targetCurrency, connection);
+  return {
+    ...baseRule,
+    currency_code: targetCurrency,
+    base_currency_code: "USD",
+    base_rate: baseRule.rate,
+    rate: converted.rate,
+    fx_rate: converted.fx_rate,
+    fx_source: converted.fx_source,
+    fx_effective_at: converted.fx_effective_at,
+  };
+};
+
+/**
+ * Append an immutable, effective-dated pricing/configuration snapshot.
+ * The old snapshot remains available for analytics intervals that started
+ * before this change; only its exclusive end timestamp is closed.
+ */
+const insertCampaignPricingSnapshot = async (
+  connection,
+  {
+    campaignId,
+    adId,
+    platform,
+    cpmRule,
+    cpcRule,
+    currencyCode,
+    effectiveFromTimestamp,
+    campaignTimezone,
+    dailyBudget,
+    totalBudget,
+    campaignStartTimestamp,
+    campaignEndTimestamp,
+    businessId,
+  },
+) => {
+  let effectiveFrom = Number(effectiveFromTimestamp);
+  if (!Number.isSafeInteger(effectiveFrom) || effectiveFrom <= 0) {
+    throw createError("A valid pricing snapshot effective timestamp is required.", 400);
+  }
+  const tax = await getBusinessTaxConfiguration(businessId, connection);
+  if (Number(cpmRule.fx_rate || 0) <= 0 || Number(cpcRule.fx_rate || 0) <= 0) {
+    throw createError("A valid USD reference exchange rate is required for campaign pricing.", 409);
+  }
+
+  // Unix-second timestamps are used by the existing mobile analytics contract.
+  // Prevent two rapid edits in the same second from overwriting the prior
+  // snapshot's pricing values. A later version starts at the next whole second.
+  const [latestSnapshotRows] = await connection.execute(
+    `SELECT MAX(effective_from_timestamp) AS latest_effective_from
+     FROM ad_campaign_pricing
+     WHERE campaign_id = ? AND ad_id = ? AND platform = ?`,
+    [campaignId, adId, platform],
+  );
+  const latestEffectiveFrom = latestSnapshotRows[0]?.latest_effective_from;
+  if (latestEffectiveFrom !== null && latestEffectiveFrom !== undefined) {
+    const latest = Number(latestEffectiveFrom);
+    if (latest >= effectiveFrom) effectiveFrom = latest + 1;
+  }
+
+  await connection.execute(
+    `UPDATE ad_campaign_pricing
+     SET effective_until_timestamp = ?
+     WHERE campaign_id = ?
+       AND ad_id = ?
+       AND platform = ?
+       AND effective_from_timestamp < ?
+       AND (effective_until_timestamp IS NULL OR effective_until_timestamp > ?)`,
+    [effectiveFrom, campaignId, adId, platform, effectiveFrom, effectiveFrom],
+  );
+
+  await connection.execute(
+    `INSERT INTO ad_campaign_pricing (
+       campaign_id,
+       ad_id,
+       platform,
+       cpm_pricing_rule_id,
+       cpc_pricing_rule_id,
+       currency_code,
+       cpm_rate,
+       cpc_rate,
+       effective_from_timestamp,
+       effective_until_timestamp,
+       campaign_timezone,
+       daily_budget,
+       total_budget,
+       campaign_start_timestamp,
+       campaign_end_timestamp,
+       business_id,
+       base_currency_code,
+       base_cpm_rate,
+       base_cpc_rate,
+       fx_rate_to_currency,
+       fx_source,
+       fx_effective_at,
+       tax_rule_id,
+       tax_name,
+       tax_rate,
+       platform_fee_rate,
+       tax_registration_id,
+       tax_id_label,
+       tax_basis
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, 'USD', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'base_ad_spend')
+     ON DUPLICATE KEY UPDATE
+       cpm_pricing_rule_id = VALUES(cpm_pricing_rule_id),
+       cpc_pricing_rule_id = VALUES(cpc_pricing_rule_id),
+       currency_code = VALUES(currency_code),
+       cpm_rate = VALUES(cpm_rate),
+       cpc_rate = VALUES(cpc_rate),
+       effective_until_timestamp = NULL,
+       campaign_timezone = VALUES(campaign_timezone),
+       daily_budget = VALUES(daily_budget),
+       total_budget = VALUES(total_budget),
+       campaign_start_timestamp = VALUES(campaign_start_timestamp),
+       campaign_end_timestamp = VALUES(campaign_end_timestamp),
+       business_id = VALUES(business_id),
+       base_currency_code = VALUES(base_currency_code),
+       base_cpm_rate = VALUES(base_cpm_rate),
+       base_cpc_rate = VALUES(base_cpc_rate),
+       fx_rate_to_currency = VALUES(fx_rate_to_currency),
+       fx_source = VALUES(fx_source),
+       fx_effective_at = VALUES(fx_effective_at),
+       tax_rule_id = VALUES(tax_rule_id),
+       tax_name = VALUES(tax_name),
+       tax_rate = VALUES(tax_rate),
+       platform_fee_rate = VALUES(platform_fee_rate),
+       tax_registration_id = VALUES(tax_registration_id),
+       tax_id_label = VALUES(tax_id_label),
+       tax_basis = VALUES(tax_basis)`,
+    [
+      campaignId,
+      adId,
+      platform,
+      cpmRule.id,
+      cpcRule.id,
+      currencyCode,
+      cpmRule.rate,
+      cpcRule.rate,
+      effectiveFrom,
+      campaignTimezone,
+      dailyBudget,
+      totalBudget,
+      campaignStartTimestamp,
+      campaignEndTimestamp,
+      businessId,
+      cpmRule.base_rate,
+      cpcRule.base_rate,
+      cpmRule.fx_rate,
+      cpmRule.fx_source,
+      cpmRule.fx_effective_at,
+      tax.tax_rule_id,
+      tax.tax_name,
+      tax.tax_rate,
+      tax.platform_fee_rate,
+      tax.tax_registration_id,
+      tax.tax_id_label,
+    ],
+  );
 };
 
 const saveCampaign = async (adId, userId, data, schedule = null) => {
@@ -107,6 +267,18 @@ const saveCampaign = async (adId, userId, data, schedule = null) => {
 
   try {
     await connection.beginTransaction();
+
+    // Keep the lock order consistent with analytics ingestion and campaign
+    // publication: global wallet first, then ad/campaign rows. This avoids a
+    // wallet<->ad lock inversion when an advertiser edits a live campaign while
+    // an analytics batch for that advertiser is being committed.
+    const [lockedWalletRows] = await connection.execute(
+      `SELECT id FROM wallets WHERE user_id = ? LIMIT 1 FOR UPDATE`,
+      [userId],
+    );
+    if (lockedWalletRows.length === 0) {
+      throw createError("Wallet not found.", 404);
+    }
 
     const [ads] = await connection.execute(
       `
@@ -144,6 +316,7 @@ const saveCampaign = async (adId, userId, data, schedule = null) => {
           SELECT
             id,
             status,
+            currency_code,
             start_timestamp,
             end_timestamp,
             DATE_FORMAT(start_date, '%Y-%m-%d') AS start_date,
@@ -205,6 +378,12 @@ const saveCampaign = async (adId, userId, data, schedule = null) => {
       }
 
       if (isLiveCampaignEdit) {
+        if (existingCampaign.currency_code !== data.currency_code) {
+          throw createError(
+            "The currency of a published campaign cannot be changed. Create a new campaign using the business's current country currency.",
+            409,
+          );
+        }
         if (!schedule) {
           throw createError("A valid replacement campaign schedule is required.", 400);
         }
@@ -265,7 +444,12 @@ const saveCampaign = async (adId, userId, data, schedule = null) => {
           connection, userId, now, data.currency_code, campaignId,
         );
         const remainingBudgetMicros = newBudgetMicros - spentMicros;
-        const campaignPayable = calculateWalletPayableMicros(remainingBudgetMicros);
+        const campaignTax = await getBusinessTaxConfiguration(ad.business_id, connection);
+        const campaignPayable = calculateWalletPayableMicros(
+          remainingBudgetMicros,
+          campaignTax.platform_fee_rate,
+          campaignTax.tax_rate,
+        );
         const requiredWalletMicros =
           outstanding.committedPayableMicros + campaignPayable.payableMicros;
         const availableWalletMicros = decimalToMicros(balanceRows[0].balance);
@@ -311,26 +495,6 @@ const saveCampaign = async (adId, userId, data, schedule = null) => {
           pricingRows.push({ platform, cpmRule, cpcRule });
         }
 
-        // ad_campaign_pricing stores one current pricing snapshot per
-        // campaign/ad/platform. Campaign schedule and budget live in
-        // ad_campaigns; keep the pricing row aligned with the current rules.
-        for (const item of pricingRows) {
-          await connection.execute(
-            `INSERT INTO ad_campaign_pricing (
-               campaign_id, ad_id, platform, cpm_pricing_rule_id,
-               cpc_pricing_rule_id, currency_code, cpm_rate, cpc_rate
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-             ON DUPLICATE KEY UPDATE
-               cpm_pricing_rule_id = VALUES(cpm_pricing_rule_id),
-               cpc_pricing_rule_id = VALUES(cpc_pricing_rule_id),
-               currency_code = VALUES(currency_code),
-               cpm_rate = VALUES(cpm_rate),
-               cpc_rate = VALUES(cpc_rate)`,
-            [campaignId, adId, item.platform, item.cpmRule.id,
-             item.cpcRule.id, data.currency_code, item.cpmRule.rate, item.cpcRule.rate],
-          );
-        }
-
         const [liveCampaignUpdate] = await connection.execute(
           `UPDATE ad_campaigns
            SET business_id = ?, currency_code = ?, budget_type = 'daily',
@@ -344,6 +508,27 @@ const saveCampaign = async (adId, userId, data, schedule = null) => {
            liveSchedule.startTimestamp, liveSchedule.endTimestamp, timezone,
            campaignId, userId, ad.status],
         );
+        if (liveCampaignUpdate.affectedRows !== 1) {
+          throw createError("Active campaign could not be updated.", 409);
+        }
+        const pricingEffectiveFrom = Math.floor(Date.now() / 1000);
+        for (const item of pricingRows) {
+          await insertCampaignPricingSnapshot(connection, {
+            campaignId,
+            adId,
+            platform: item.platform,
+            cpmRule: item.cpmRule,
+            cpcRule: item.cpcRule,
+            currencyCode: data.currency_code,
+            effectiveFromTimestamp: pricingEffectiveFrom,
+            campaignTimezone: timezone,
+            dailyBudget: data.daily_budget,
+            totalBudget: data.total_budget,
+            campaignStartTimestamp: liveSchedule.startTimestamp,
+            campaignEndTimestamp: liveSchedule.endTimestamp,
+            businessId: ad.business_id,
+          });
+        }
         await connection.execute(
           `UPDATE ads
            SET last_completed_step = GREATEST(COALESCE(last_completed_step, 1), 3),
@@ -387,8 +572,11 @@ const saveCampaign = async (adId, userId, data, schedule = null) => {
           data.currency_code,
           campaignId,
         );
+        const campaignTax = await getBusinessTaxConfiguration(ad.business_id, connection);
         const campaignPayable = calculateWalletPayableMicros(
           decimalToMicros(data.total_budget),
+          campaignTax.platform_fee_rate,
+          campaignTax.tax_rate,
         );
         const requiredWalletMicros =
           outstanding.committedPayableMicros + campaignPayable.payableMicros;
@@ -541,25 +729,21 @@ const saveCampaign = async (adId, userId, data, schedule = null) => {
         );
 
         for (const item of newPricingRows) {
-          await connection.execute(
-            `
-              INSERT INTO ad_campaign_pricing (
-                campaign_id, ad_id, platform, cpm_pricing_rule_id,
-                cpc_pricing_rule_id, currency_code, cpm_rate, cpc_rate
-              )
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            `,
-            [
-              campaignId,
-              adId,
-              item.platform,
-              item.cpmRule.id,
-              item.cpcRule.id,
-              item.cpmRule.currency_code,
-              item.cpmRule.rate,
-              item.cpcRule.rate,
-            ],
-          );
+          await insertCampaignPricingSnapshot(connection, {
+            campaignId,
+            adId,
+            platform: item.platform,
+            cpmRule: item.cpmRule,
+            cpcRule: item.cpcRule,
+            currencyCode: item.cpmRule.currency_code,
+            effectiveFromTimestamp: schedule.startTimestamp,
+            campaignTimezone: timezone,
+            dailyBudget: data.daily_budget,
+            totalBudget: data.total_budget,
+            campaignStartTimestamp: schedule.startTimestamp,
+            campaignEndTimestamp: schedule.endTimestamp,
+            businessId: ad.business_id,
+          });
         }
 
         const adStatus = schedule.campaignStatus === "active" ? "active" : "draft";
@@ -781,10 +965,22 @@ const getCampaignDetails = async (adId, userId) => {
         cpc_pricing_rule_id,
         currency_code,
         cpm_rate,
-        cpc_rate
+        cpc_rate,
+        base_currency_code,
+        base_cpm_rate,
+        base_cpc_rate,
+        fx_rate_to_currency,
+        fx_source,
+        fx_effective_at,
+        tax_name,
+        tax_rate,
+        platform_fee_rate,
+        tax_id_label,
+        tax_basis
       FROM ad_campaign_pricing
       WHERE campaign_id = ?
-      ORDER BY platform DESC, id DESC
+        AND effective_until_timestamp IS NULL
+      ORDER BY platform DESC, effective_from_timestamp DESC, id DESC
     `,
     [campaign.id],
   );
@@ -889,7 +1085,8 @@ const publishCampaign = async (
           bd.city,
           c.currency_code,
           c.timezone,
-          c.daily_budget
+          c.daily_budget,
+          c.total_budget
         FROM ads a
         INNER JOIN ad_campaigns c
           ON c.id = a.campaign_id
@@ -1007,7 +1204,12 @@ const publishCampaign = async (
       }
       campaignRemainingBudget = campaignBudget - spentMicros;
     }
-    const campaignPayable = calculateWalletPayableMicros(campaignRemainingBudget);
+    const campaignTax = await getBusinessTaxConfiguration(ad.business_id, connection);
+    const campaignPayable = calculateWalletPayableMicros(
+      campaignRemainingBudget,
+      campaignTax.platform_fee_rate,
+      campaignTax.tax_rate,
+    );
     const requiredWalletMicros =
       outstanding.committedPayableMicros + campaignPayable.payableMicros;
     const availableWalletMicros = decimalToMicros(walletBalance);
@@ -1062,25 +1264,21 @@ const publishCampaign = async (
         );
       }
 
-      await connection.execute(
-        `
-          INSERT INTO ad_campaign_pricing (
-            campaign_id, ad_id, platform, cpm_pricing_rule_id,
-            cpc_pricing_rule_id, currency_code, cpm_rate, cpc_rate
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-        [
-          campaignId,
-          adId,
-          platform,
-          cpmRule.id,
-          cpcRule.id,
-          cpmRule.currency_code,
-          cpmRule.rate,
-          cpcRule.rate,
-        ],
-      );
+      await insertCampaignPricingSnapshot(connection, {
+        campaignId,
+        adId,
+        platform,
+        cpmRule,
+        cpcRule,
+        currencyCode: cpmRule.currency_code,
+        effectiveFromTimestamp: startTimestamp,
+        campaignTimezone: ad.timezone,
+        dailyBudget: ad.daily_budget,
+        totalBudget: ad.total_budget,
+        campaignStartTimestamp: startTimestamp,
+        campaignEndTimestamp: endTimestamp,
+        businessId: ad.business_id,
+      });
     }
 
     }
@@ -1341,8 +1539,11 @@ const republishCompletedCampaign = async (
       nowTimestamp,
       currency.currency_code,
     );
+    const campaignTax = await getBusinessTaxConfiguration(ad.ad_business_id, connection);
     const campaignPayable = calculateWalletPayableMicros(
       decimalToMicros(ad.total_budget),
+      campaignTax.platform_fee_rate,
+      campaignTax.tax_rate,
     );
     const requiredWalletMicros =
       outstanding.committedPayableMicros + campaignPayable.payableMicros;
@@ -1429,25 +1630,21 @@ const republishCompletedCampaign = async (
     const newCampaignId = campaignResult.insertId;
 
     for (const item of pricingRows) {
-      await connection.execute(
-        `
-          INSERT INTO ad_campaign_pricing (
-            campaign_id, ad_id, platform, cpm_pricing_rule_id,
-            cpc_pricing_rule_id, currency_code, cpm_rate, cpc_rate
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-        [
-          newCampaignId,
-          adId,
-          item.platform,
-          item.cpmRule.id,
-          item.cpcRule.id,
-          currency.currency_code,
-          item.cpmRule.rate,
-          item.cpcRule.rate,
-        ],
-      );
+      await insertCampaignPricingSnapshot(connection, {
+        campaignId: newCampaignId,
+        adId,
+        platform: item.platform,
+        cpmRule: item.cpmRule,
+        cpcRule: item.cpcRule,
+        currencyCode: currency.currency_code,
+        effectiveFromTimestamp: startTimestamp,
+        campaignTimezone: ad.timezone,
+        dailyBudget: ad.daily_budget,
+        totalBudget: ad.total_budget,
+        campaignStartTimestamp: startTimestamp,
+        campaignEndTimestamp: endTimestamp,
+        businessId: ad.ad_business_id,
+      });
     }
 
     const [adUpdate] = await connection.execute(
@@ -1575,7 +1772,17 @@ const getCampaignPricingPreview = async (ad, currencyCode) => {
     if (cpm.currency_code !== cpc.currency_code || cpm.currency_code !== currencyCode) {
       throw createError(`CPM and CPC pricing currencies do not match for ${platform}.`, 400);
     }
-    result[platform] = { cpm_rate: cpm.rate, cpc_rate: cpc.rate, currency_code: currencyCode };
+    result[platform] = {
+      cpm_rate: cpm.rate,
+      cpc_rate: cpc.rate,
+      currency_code: currencyCode,
+      base_currency_code: "USD",
+      base_cpm_rate: cpm.base_rate,
+      base_cpc_rate: cpc.base_rate,
+      fx_rate_to_currency: cpm.fx_rate,
+      fx_source: cpm.fx_source,
+      fx_effective_at: cpm.fx_effective_at,
+    };
   }
   return result;
 };

@@ -1,5 +1,5 @@
 import pool from "../configs/database/db.js";
-import { getCurrencyByCode, getCurrencyByCountryCode } from "../utils/currencyConfig.js";
+
 
 const getPricingRuleSelectQuery = () => `
     SELECT
@@ -17,27 +17,11 @@ const getPricingRuleSelectQuery = () => `
 `;
 
 
-const validateCurrencyCountry = ({ country_code, currency_code }) => {
-  const currency = getCurrencyByCode(currency_code);
-  if (!currency) {
-    const error = new Error(`Unsupported currency code: ${currency_code}`);
+const validateCurrencyCountry = ({ currency_code }) => {
+  if (String(currency_code || "").toUpperCase() !== "USD") {
+    const error = new Error("Campaign pricing rules must be entered in USD, the base reference currency. The backend converts them using the saved USD exchange rate for the business currency.");
     error.statusCode = 400;
     throw error;
-  }
-  if (country_code) {
-    const countryCurrency = getCurrencyByCountryCode(country_code);
-    if (!countryCurrency) {
-      const error = new Error(`Unsupported country code: ${country_code}`);
-      error.statusCode = 400;
-      throw error;
-    }
-    if (String(countryCurrency.currency_code).toUpperCase() !== String(currency_code).toUpperCase()) {
-      const error = new Error(
-        `${country_code} uses ${countryCurrency.currency_code}; pricing currency must match the country's configured currency.`,
-      );
-      error.statusCode = 400;
-      throw error;
-    }
   }
 };
 

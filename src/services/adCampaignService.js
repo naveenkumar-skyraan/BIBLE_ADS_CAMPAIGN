@@ -11,6 +11,7 @@ import {
   PLATFORM_FEE_PERCENT,
   GST_PERCENT,
 } from "../utils/adSpendCalculator.js";
+import { getBusinessTaxConfiguration } from "../utils/taxConfig.js";
 import {
   getCurrencyForCountry,
   getCurrencyMetadata,
@@ -179,21 +180,27 @@ const buildCampaignSchedule = ({
   };
 };
 
-const calculatePaymentSummary = (dailyBudget, durationDays, savedTotalBudget = null) => {
+const calculatePaymentSummary = (dailyBudget, durationDays, savedTotalBudget = null, tax = null) => {
   const dailyBudgetMicros = decimalToMicros(dailyBudget);
   const actualBudgetMicros = savedTotalBudget === null
     ? dailyBudgetMicros * BigInt(durationDays)
     : decimalToMicros(savedTotalBudget);
-  const platformFeeMicros = calculatePercentageMicros(actualBudgetMicros, PLATFORM_FEE_PERCENT);
-  const gstMicros = calculatePercentageMicros(actualBudgetMicros, GST_PERCENT);
+  const platformFeePercent = Number(tax?.platform_fee_rate ?? PLATFORM_FEE_PERCENT);
+  const taxPercent = Number(tax?.tax_rate ?? GST_PERCENT);
+  const platformFeeMicros = calculatePercentageMicros(actualBudgetMicros, platformFeePercent);
+  // Tax is assessed on base advertising spend only. Platform fee is excluded.
+  const gstMicros = calculatePercentageMicros(actualBudgetMicros, taxPercent);
   const payableMicros = actualBudgetMicros + platformFeeMicros + gstMicros;
   return {
     daily_budget: microsToDecimal(dailyBudgetMicros),
     duration_days: durationDays,
     actual_campaign_budget: microsToDecimal(actualBudgetMicros),
-    platform_fee_percentage: PLATFORM_FEE_PERCENT,
+    platform_fee_percentage: platformFeePercent,
     platform_fee: microsToDecimal(platformFeeMicros),
-    gst_percentage: GST_PERCENT,
+    tax_name: tax?.tax_name || "Tax",
+    tax_percentage: taxPercent,
+    tax_basis: "base_ad_spend",
+    gst_percentage: taxPercent,
     gst_amount: microsToDecimal(gstMicros),
     total_payable: microsToDecimal(payableMicros),
     currency: null,
@@ -268,7 +275,8 @@ const saveCampaign = async (adId, userId, data) => {
     throw createError("Campaign duration must be between 1 and 3660 days.", 400);
   }
 
-  const paymentSummary = calculatePaymentSummary(dailyBudget, durationDays);
+  const taxConfiguration = await getBusinessTaxConfiguration(ad.business_id);
+  const paymentSummary = calculatePaymentSummary(dailyBudget, durationDays, null, taxConfiguration);
   paymentSummary.currency = currency.currency_code;
   paymentSummary.currency_symbol = currency.currency_symbol;
   const requiredMicros = decimalToMicros(paymentSummary.total_payable);
@@ -327,10 +335,18 @@ const getCampaignDetails = async (adId, userId) => {
   }
 
   const currency = getCurrencyMetadata(campaign.currency_code);
+  const savedPricing = campaign.pricing_snapshots?.[0];
+  const taxConfiguration = savedPricing ? {
+    tax_name: savedPricing.tax_name,
+    tax_rate: Number(savedPricing.tax_rate),
+    platform_fee_rate: Number(savedPricing.platform_fee_rate),
+    tax_basis: savedPricing.tax_basis,
+  } : await getBusinessTaxConfiguration(campaign.business_id);
   const paymentSummary = calculatePaymentSummary(
     campaign.daily_budget,
     campaign.duration_days,
     campaign.total_budget,
+    taxConfiguration,
   );
   paymentSummary.currency = currency.currency_code;
   paymentSummary.currency_symbol = currency.currency_symbol;

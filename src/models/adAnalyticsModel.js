@@ -6,6 +6,11 @@ import {
   microsToDecimal,
   calculateAdSpend,
 } from "../utils/adSpendCalculator.js";
+import {
+  capAdEventsToSpendLimit,
+  getMaxBaseSpendForWalletBalance,
+} from "../utils/adSpendLimits.js";
+import { inspectModerationInterval } from "../utils/adModerationHistory.js";
 
 const createError = (
   message,
@@ -111,8 +116,8 @@ const persistRejectedBatch = async (
   return result.insertId;
 };
 
-const getExistingBatch = async (batchId) => {
-  const [rows] = await pool.execute(
+const getExistingBatch = async (batchId, connection = pool) => {
+  const [rows] = await connection.execute(
     `
       SELECT
         id,
@@ -129,7 +134,7 @@ const getExistingBatch = async (batchId) => {
   return rows[0] || null;
 };
 
-const getDuplicateBatchResponse = (existing, payload, payloadHash) => {
+const getDuplicateBatchResponse = async (connection, existing, payload, payloadHash) => {
   if (existing.payload_hash !== payloadHash) {
     throw createError(
       "This batch_id has already been used with a different payload.",
@@ -138,11 +143,29 @@ const getDuplicateBatchResponse = (existing, payload, payloadHash) => {
     );
   }
 
+  let mobileActions = [];
+  if (existing.processing_status === "processed") {
+    const [actionRows] = await connection.execute(
+      `SELECT ad_id, mobile_action AS action, limit_reason AS reason, resume_at
+       FROM ad_analytics_batch_items
+       WHERE batch_record_id = ? AND mobile_action IS NOT NULL
+       ORDER BY id ASC`,
+      [existing.id],
+    );
+    mobileActions = actionRows.map((row) => ({
+      ad_id: Number(row.ad_id),
+      action: row.action,
+      reason: row.reason,
+      ...(row.resume_at ? { resume_at: Number(row.resume_at) } : {}),
+    }));
+  }
+
   return {
     duplicate: true,
     rejected: existing.processing_status === "rejected",
     batch_id: payload.batch_id,
     rejection_reason: existing.rejection_reason || null,
+    mobile_actions: mobileActions,
     message:
       existing.processing_status === "rejected"
         ? "This analytics batch was previously rejected."
@@ -184,7 +207,7 @@ const persistRejectedBatchAfterRollback = async (
       await connection.rollback();
       transactionOpen = false;
 
-      return getDuplicateBatchResponse(existing, payload, payloadHash);
+      return await getDuplicateBatchResponse(connection, existing, payload, payloadHash);
     }
 
     const batchRecordId = await persistRejectedBatch(
@@ -219,10 +242,10 @@ const persistRejectedBatchAfterRollback = async (
     }
 
     if (error.code === "ER_DUP_ENTRY") {
-      const existing = await getExistingBatch(payload.batch_id);
+      const existing = await getExistingBatch(payload.batch_id, connection);
 
       if (existing) {
-        return getDuplicateBatchResponse(existing, payload, payloadHash);
+        return await getDuplicateBatchResponse(connection, existing, payload, payloadHash);
       }
     }
 
@@ -372,16 +395,12 @@ export const processAdAnalyticsBatch = async (payload) => {
         );
       }
 
-      return {
-        duplicate: true,
-        rejected: existing.processing_status === "rejected",
-        batch_id: payload.batch_id,
-        rejection_reason: existing.rejection_reason || null,
-        message:
-          existing.processing_status === "rejected"
-            ? "This analytics batch was previously rejected."
-            : "This analytics batch was already processed.",
-      };
+      return await getDuplicateBatchResponse(
+        connection,
+        existing,
+        payload,
+        payloadHash,
+      );
     }
 
     const currentTimestamp = Math.floor(Date.now() / 1000);
@@ -462,13 +481,19 @@ export const processAdAnalyticsBatch = async (payload) => {
             wb.balance AS wallet_balance,
 
             cp.currency_code,
+            cp.effective_until_timestamp AS pricing_effective_until_timestamp,
             cp.cpm_rate,
             cp.cpc_rate,
-            c.timezone AS pricing_timezone,
-            c.daily_budget AS pricing_daily_budget,
-            c.start_timestamp AS pricing_start_timestamp,
-            c.end_timestamp AS pricing_end_timestamp,
-            c.business_id AS pricing_business_id
+            cp.tax_rate AS pricing_tax_rate,
+            cp.platform_fee_rate AS pricing_platform_fee_rate,
+            cp.tax_name AS pricing_tax_name,
+            cp.tax_basis AS pricing_tax_basis,
+            cp.campaign_timezone AS pricing_timezone,
+            cp.daily_budget AS pricing_daily_budget,
+            cp.total_budget AS pricing_total_budget,
+            cp.campaign_start_timestamp AS pricing_start_timestamp,
+            cp.campaign_end_timestamp AS pricing_end_timestamp,
+            cp.business_id AS pricing_business_id
 
           FROM ads a
 
@@ -488,16 +513,27 @@ export const processAdAnalyticsBatch = async (payload) => {
             ON cp.campaign_id = c.id
             AND cp.ad_id = a.id
             AND cp.platform = ?
+            AND cp.effective_from_timestamp <= ?
+            AND (
+              cp.effective_until_timestamp IS NULL
+              OR cp.effective_until_timestamp > ?
+            )
 
           INNER JOIN wallet_balances wb
             ON wb.wallet_id = w.id
             AND wb.currency_code = cp.currency_code
 
           WHERE a.id = ?
+          ORDER BY cp.effective_from_timestamp DESC, cp.id DESC
           LIMIT 1
           FOR UPDATE
         `,
-        [payload.platform, item.ad_id],
+        [
+          payload.platform,
+          payload.interval_start,
+          payload.interval_start,
+          item.ad_id,
+        ],
       );
 
       if (adRows.length === 0) {
@@ -508,6 +544,20 @@ export const processAdAnalyticsBatch = async (payload) => {
       }
 
       const ad = adRows[0];
+
+      // A batch must belong entirely to one pricing/configuration version.
+      // Reject boundary-crossing intervals so the mobile client can split the
+      // interval and submit each side under its correct immutable snapshot.
+      if (
+        ad.pricing_effective_until_timestamp !== null &&
+        Number(payload.interval_end) > Number(ad.pricing_effective_until_timestamp)
+      ) {
+        throw createError(
+          `Analytics interval for ad ${item.ad_id} crosses a campaign pricing-change boundary. Split the interval and submit each part separately.`,
+          409,
+          "pricing_snapshot_boundary_overlap",
+        );
+      }
 
       const adIsDeleted = Number(ad.ad_is_deleted) === 1;
       const campaignIsDeleted = Number(ad.campaign_is_deleted) === 1;
@@ -555,40 +605,18 @@ export const processAdAnalyticsBatch = async (payload) => {
           WHERE ad_id = ?
             AND user_id = ?
             AND event_type IN ('blocked', 'approved')
-          ORDER BY id DESC
+          ORDER BY created_at ASC, id ASC
         `,
         [item.ad_id, ad.user_id],
       );
 
-      let moderationStartedAt = null;
-      let moderationWindowOverlap = false;
+      const moderationState = inspectModerationInterval(
+        moderationEvents,
+        payload.interval_start,
+        payload.interval_end,
+      );
 
-      for (const event of moderationEvents) {
-        const eventTimestamp = Number(event.event_timestamp);
-
-        if (event.event_type === "blocked") {
-          moderationStartedAt = eventTimestamp;
-          continue;
-        }
-
-        if (event.event_type === "approved" && moderationStartedAt !== null) {
-          if (
-            moderationStartedAt < Number(payload.interval_end) &&
-            eventTimestamp > Number(payload.interval_start)
-          ) {
-            moderationWindowOverlap = true;
-            break;
-          }
-
-          moderationStartedAt = null;
-        }
-      }
-
-      if (
-        moderationWindowOverlap ||
-        (moderationStartedAt !== null &&
-          moderationStartedAt < Number(payload.interval_end))
-      ) {
+      if (moderationState.overlaps) {
         throw createError(
           `Analytics interval for ad ${item.ad_id} overlaps a moderation block period.`,
           409,
@@ -596,7 +624,7 @@ export const processAdAnalyticsBatch = async (payload) => {
         );
       }
 
-      if (ad.moderation_status !== "none" && moderationStartedAt === null) {
+      if (ad.moderation_status !== "none" && !moderationState.hasOpenModeration) {
         throw createError(
           `Ad ${item.ad_id} is under moderation but its moderation history is incomplete.`,
           409,
@@ -708,21 +736,12 @@ export const processAdAnalyticsBatch = async (payload) => {
         );
       }
 
-      const charges = calculateAdSpend({
-        impressions: item.impressions,
-        clicks: item.clicks,
-        cpmRate: ad.cpm_rate,
-        cpcRate: ad.cpc_rate,
-      });
-
       const walletId = Number(ad.wallet_id);
       const campaignId = Number(ad.campaign_id);
       const walletKey = `${walletId}:${ad.currency_code}`;
       const walletBefore = walletBalances.has(walletKey)
         ? walletBalances.get(walletKey)
         : decimalToMicros(ad.wallet_balance);
-
-      const walletAfter = walletBefore - charges.walletDebitMicros;
 
       const dailyKey = `${campaignId}:${localDate}`;
       const pendingDaily = dailyPending.get(dailyKey) || 0n;
@@ -753,128 +772,92 @@ export const processAdAnalyticsBatch = async (payload) => {
 
       const dailySpent = decimalToMicros(dailyRows[0].spent);
       const lifetimeSpent = decimalToMicros(lifetimeRows[0].spent);
+      const dailyBudget = ad.pricing_daily_budget === null
+        ? null
+        : decimalToMicros(ad.pricing_daily_budget);
+      const totalBudget = decimalToMicros(ad.pricing_total_budget);
 
-      const dailyBudget =
-        ad.pricing_daily_budget === null ? null : decimalToMicros(ad.pricing_daily_budget);
+      const dailyRemaining = dailyBudget === null
+        ? null
+        : (dailyBudget > dailySpent + pendingDaily
+            ? dailyBudget - dailySpent - pendingDaily
+            : 0n);
+      const lifetimeRemaining = totalBudget > lifetimeSpent + pendingLifetime
+        ? totalBudget - lifetimeSpent - pendingLifetime
+        : 0n;
+      const platformFeePercent = Number(ad.pricing_platform_fee_rate ?? 30);
+      const taxPercent = Number(ad.pricing_tax_rate ?? 0);
+      const walletBaseRemaining = getMaxBaseSpendForWalletBalance(
+        walletBefore,
+        platformFeePercent,
+        taxPercent,
+      );
 
-      const totalBudget = decimalToMicros(ad.total_budget);
+      // The first reached limit wins. Ties prefer campaign completion, then
+      // daily pause, then insufficient-wallet pause.
+      const limits = [
+        { reason: "lifetime_budget", remaining: lifetimeRemaining, priority: 0 },
+        ...(dailyRemaining === null
+          ? []
+          : [{ reason: "daily_budget", remaining: dailyRemaining, priority: 1 }]),
+        { reason: "wallet_insufficient", remaining: walletBaseRemaining, priority: 2 },
+      ].sort((a, b) =>
+        a.remaining === b.remaining
+          ? a.priority - b.priority
+          : a.remaining < b.remaining ? -1 : 1,
+      );
+      const limitingBudget = limits[0];
+
+      const capped = capAdEventsToSpendLimit({
+        impressions: item.impressions,
+        clicks: item.clicks,
+        cpmRate: ad.cpm_rate,
+        cpcRate: ad.cpc_rate,
+        maxSpendMicros: limitingBudget.remaining,
+        platformFeePercent,
+        gstPercent: taxPercent,
+      });
+      const charges = capped.charges;
+      const wasCapped = capped.wasCapped;
+      const hasReportedBillableEvents =
+        Number(item.impressions) > 0 || Number(item.clicks) > 0;
+      const limitReached = hasReportedBillableEvents &&
+        calculateAdSpend({
+          impressions: item.impressions,
+          clicks: item.clicks,
+          cpmRate: ad.cpm_rate,
+          cpcRate: ad.cpc_rate,
+          platformFeePercent,
+          gstPercent: taxPercent,
+        }).totalMicros >= limitingBudget.remaining;
+      const limitAction = limitReached ? limitingBudget.reason : null;
+
+      const walletAfter = walletBefore - charges.walletDebitMicros;
+      if (walletAfter < 0n) {
+        throw createError(
+          "Wallet spend cap could not be enforced safely. No wallet debit was committed.",
+          409,
+          null,
+        );
+      }
 
       const dailyTotalAfter = dailySpent + pendingDaily + charges.totalMicros;
-
       const lifetimeTotalAfter =
         lifetimeSpent + pendingLifetime + charges.totalMicros;
-
-      if (dailyBudget !== null && dailyTotalAfter > dailyBudget) {
-        const resumeAt = getNextLocalMidnight(localDate, ad.pricing_timezone);
-
-        if (!adIsDeleted) {
-          await pauseCampaign(connection, {
-            campaignId,
-            adId: item.ad_id,
-            reason: "daily_budget",
-            pausedAt: Number(payload.interval_start),
-            resumeAt,
-          });
-        }
-
-        const rejectedBatchId = await persistRejectedBatch(
-          connection,
-          payload,
-          payloadHash,
-          "daily_budget_exceeded",
-        );
-
-        await connection.commit();
-
-        return {
-          rejected: true,
-          batch_id: payload.batch_id,
-          batch_record_id: rejectedBatchId,
-          reason: "daily_budget_exceeded",
-          message: adIsDeleted
-            ? "The batch exceeds the campaign daily budget and was rejected. The cancelled campaign was not modified."
-            : "The batch exceeds the campaign daily budget. The campaign was paused until the next campaign-local day.",
-          ad_id: item.ad_id,
-          ...(!adIsDeleted ? { resume_at: resumeAt } : {}),
-        };
-      }
-
-      if (lifetimeTotalAfter > totalBudget) {
-        if (!adIsDeleted) {
-          await completeCampaignForBudget(
-            connection,
-            campaignId,
-            item.ad_id,
-            Number(payload.interval_start),
-          );
-        }
-
-        const rejectedBatchId = await persistRejectedBatch(
-          connection,
-          payload,
-          payloadHash,
-          "lifetime_budget_exceeded",
-        );
-
-        await connection.commit();
-
-        return {
-          rejected: true,
-          batch_id: payload.batch_id,
-          batch_record_id: rejectedBatchId,
-          reason: "lifetime_budget_exceeded",
-          message: adIsDeleted
-            ? "The batch exceeds the campaign total budget and was rejected. The cancelled campaign was not modified."
-            : "The batch exceeds the campaign total budget. The campaign was completed.",
-          ad_id: item.ad_id,
-        };
-      }
-
-      if (walletBefore < charges.walletDebitMicros) {
-        const pauseTimestamp = Number(payload.interval_end);
-        if (!adIsDeleted) {
-          await pauseCampaign(connection, {
-            campaignId,
-            adId: item.ad_id,
-            reason: "wallet_insufficient",
-            pausedAt: pauseTimestamp,
-            resumeAt: null,
-          });
-        }
-
-        const rejectedBatchId = await persistRejectedBatch(
-          connection,
-          payload,
-          payloadHash,
-          "wallet_insufficient",
-        );
-
-        await connection.commit();
-
-        return {
-          rejected: true,
-          batch_id: payload.batch_id,
-          batch_record_id: rejectedBatchId,
-          reason: "wallet_insufficient",
-          message: adIsDeleted
-            ? "The wallet balance is insufficient. The batch was rejected without billing; the cancelled campaign was not modified."
-            : "The wallet balance is insufficient. The campaign was paused at the end of this interval. Add funds and resume the campaign; submit the unbilled interval again with a new batch_id.",
-          ad_id: item.ad_id,
-          currency: ad.currency_code,
-          available_balance: microsToDecimal(walletBefore),
-          required_amount: microsToDecimal(charges.walletDebitMicros),
-          ...(!adIsDeleted ? { paused_at: pauseTimestamp } : {}),
-        };
-      }
+      const resumeAt = limitAction === "daily_budget"
+        ? getNextLocalMidnight(localDate, ad.pricing_timezone)
+        : null;
 
       walletBalances.set(walletKey, walletAfter);
-
       dailyPending.set(dailyKey, pendingDaily + charges.totalMicros);
-
       lifetimePending.set(lifetimeKey, pendingLifetime + charges.totalMicros);
 
       preparedItems.push({
         ...item,
+        reportedImpressions: Number(item.impressions),
+        reportedClicks: Number(item.clicks),
+        impressions: capped.impressions,
+        clicks: capped.clicks,
         ad,
         localDate,
         charges,
@@ -883,6 +866,11 @@ export const processAdAnalyticsBatch = async (payload) => {
         walletKey,
         dailyTotalAfter,
         lifetimeTotalAfter,
+        wasCapped,
+        cappingReason: wasCapped ? limitingBudget.reason : null,
+        limitReason: limitAction,
+        limitAction,
+        resumeAt,
       });
     }
 
@@ -918,6 +906,13 @@ export const processAdAnalyticsBatch = async (payload) => {
 
     for (const prepared of preparedItems) {
       const { ad, localDate, charges } = prepared;
+      const expectedMobileAction = Number(ad.ad_is_deleted) === 1
+        ? null
+        : prepared.limitAction === "lifetime_budget"
+          ? "stop_ad"
+          : prepared.limitAction
+            ? "pause_ad"
+            : null;
 
       const [itemResult] = await connection.execute(
         `
@@ -933,7 +928,14 @@ export const processAdAnalyticsBatch = async (payload) => {
             interval_end,
             campaign_local_date,
             impressions,
+            reported_impressions,
             clicks,
+            reported_clicks,
+            is_capped,
+            capping_reason,
+            limit_reason,
+            mobile_action,
+            resume_at,
             currency_code,
             cpm_rate_applied,
             cpc_rate_applied,
@@ -944,7 +946,7 @@ export const processAdAnalyticsBatch = async (payload) => {
             gst_amount,
             wallet_debit
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           batchRecordId,
@@ -958,7 +960,14 @@ export const processAdAnalyticsBatch = async (payload) => {
           payload.interval_end,
           localDate,
           prepared.impressions,
+          prepared.reportedImpressions,
           prepared.clicks,
+          prepared.reportedClicks,
+          prepared.wasCapped ? 1 : 0,
+          prepared.cappingReason,
+          prepared.limitReason,
+          expectedMobileAction,
+          prepared.resumeAt,
           ad.currency_code,
           ad.cpm_rate,
           ad.cpc_rate,
@@ -1126,33 +1135,39 @@ export const processAdAnalyticsBatch = async (payload) => {
       );
 
       const adIsDeleted = Number(ad.ad_is_deleted) === 1;
+      let mobileAction = expectedMobileAction;
 
-      if (!adIsDeleted) {
-        if (prepared.lifetimeTotalAfter >= decimalToMicros(ad.total_budget)) {
-          await completeCampaignForBudget(
-            connection,
-            ad.campaign_id,
-            prepared.ad_id,
-            Number(payload.interval_end),
-          );
-        } else if (
-          ad.pricing_daily_budget !== null &&
-          prepared.dailyTotalAfter >= decimalToMicros(ad.pricing_daily_budget)
-        ) {
-          await pauseCampaign(connection, {
-            campaignId: ad.campaign_id,
-            adId: prepared.ad_id,
-            reason: "daily_budget",
-            pausedAt: Number(payload.interval_end),
-            resumeAt: getNextLocalMidnight(localDate, ad.pricing_timezone),
-          });
-        }
+      if (!adIsDeleted && prepared.limitAction === "lifetime_budget") {
+        await completeCampaignForBudget(
+          connection,
+          ad.campaign_id,
+          prepared.ad_id,
+          Number(payload.interval_end),
+        );
+        mobileAction = "stop_ad";
+      } else if (!adIsDeleted && prepared.limitAction) {
+        await pauseCampaign(connection, {
+          campaignId: ad.campaign_id,
+          adId: prepared.ad_id,
+          reason: prepared.limitAction,
+          pausedAt: Number(payload.interval_end),
+          resumeAt: prepared.resumeAt,
+        });
+        mobileAction = "pause_ad";
       }
 
       processedItems.push({
         ad_id: prepared.ad_id,
         impressions: prepared.impressions,
         clicks: prepared.clicks,
+        reported_impressions: prepared.reportedImpressions,
+        reported_clicks: prepared.reportedClicks,
+        analytics_capped: prepared.wasCapped,
+        capping_reason: prepared.cappingReason,
+        limit_reason: prepared.limitReason,
+        limit_reached: Boolean(prepared.limitAction),
+        mobile_action: mobileAction,
+        ...(prepared.resumeAt ? { resume_at: prepared.resumeAt } : {}),
         impression_charge: microsToDecimal(charges.impressionMicros),
         click_charge: microsToDecimal(charges.clickMicros),
         total_charge: microsToDecimal(charges.totalMicros),
@@ -1200,6 +1215,14 @@ export const processAdAnalyticsBatch = async (payload) => {
       total_wallet_debit: singleCurrency?.total_wallet_debit ?? null,
       currency: singleCurrency?.currency ?? null,
       currency_totals: currencyTotals,
+      mobile_actions: processedItems
+        .filter((item) => item.mobile_action)
+        .map((item) => ({
+          ad_id: item.ad_id,
+          action: item.mobile_action,
+          reason: item.limit_reason,
+          ...(item.resume_at ? { resume_at: item.resume_at } : {}),
+        })),
     };
     } catch (error) {
     try {
@@ -1209,10 +1232,11 @@ export const processAdAnalyticsBatch = async (payload) => {
     }
 
     if (error.code === "ER_DUP_ENTRY") {
-      const existingBatch = await getExistingBatch(payload.batch_id);
+      const existingBatch = await getExistingBatch(payload.batch_id, connection);
 
       if (existingBatch) {
-        return getDuplicateBatchResponse(
+        return await getDuplicateBatchResponse(
+          connection,
           existingBatch,
           payload,
           payloadHash,

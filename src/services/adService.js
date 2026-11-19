@@ -160,6 +160,12 @@ export const updateAd = async (adId, userId, data, file) => {
     ? data.ad_type_id
     : existingAd.ad_type_id;
 
+  // Validate a newly supplied ad type exactly as we do during creation.
+  // Existing ad types are retained for partial updates when the client omits it.
+  if (Object.hasOwn(data, "ad_type_id")) {
+    await validateReference("ad_types", effectiveAdTypeId, "ad type");
+  }
+
   const effectiveSubtypeId = Object.hasOwn(data, "ad_subtype_id")
     ? data.ad_subtype_id
     : existingAd.ad_subtype_id;
@@ -214,11 +220,51 @@ export const updateAd = async (adId, userId, data, file) => {
   return model.getAdById(adId, userId);
 };
 
+const normalizePerformancePeriod = (period) => {
+  if (
+    period === undefined ||
+    period === null ||
+    String(period).trim() === ""
+  ) {
+    return "this_month";
+  }
+
+  if (typeof period !== "string") {
+    throw createError("Invalid performance period.", 400);
+  }
+
+  const normalizedPeriod = period.trim().toLowerCase();
+
+  const allowedPeriods = [
+    "this_month",
+    "this_year",
+    "this_week",
+    "last_month",
+    "last_year",
+  ];
+
+  if (!allowedPeriods.includes(normalizedPeriod)) {
+    throw createError(
+      `Invalid performance period. Allowed values: ${allowedPeriods.join(", ")}.`,
+      400,
+    );
+  }
+
+  return normalizedPeriod;
+};
+
 export const getAdDetails = async (adId, userId, period = "this_month") => {
   if (!/^[1-9]\d*$/.test(String(adId))) {
     throw createError("Invalid advertisement ID.", 400);
   }
-  const result = await model.getAdDetailsForView(adId, userId, period);
+
+  const normalizedPeriod = normalizePerformancePeriod(period);
+
+  const result = await model.getAdDetailsForView(
+    adId,
+    userId,
+    normalizedPeriod,
+  );
   if (!result) throw createError("Advertisement details not found.", 404);
   if (result.campaign?.currency_code) {
     const currency = getCurrencyMetadata(result.campaign.currency_code);
@@ -333,24 +379,29 @@ export const getAdModerationHistory = async (adId, userId) => {
   return result;
 };
 
-export const deleteAd = async (adId, userId, data = {}) => {
+export const deleteAd = async (adId, userId) => {
   if (!/^[1-9]\d*$/.test(String(adId))) {
     throw createError("Invalid advertisement ID.", 400);
   }
 
-  const result = await model.deleteAd(adId, userId, data);
+  const result = await model.deleteAd(adId, userId);
 
   if (result.notFound) {
     throw createError("Advertisement or campaign not found.", 404);
   }
+
   if (result.invalidState) {
-    throw createError("Active advertisements require a valid cancellation reason before deletion.", 400);
+    throw createError(
+      "Advertisement cannot be deleted in its current state.",
+      409,
+    );
   }
-  if (result.invalidReason) {
-    throw createError("Selected cancellation reason is invalid or inactive. Fetch the active cancellation reasons and try again.", 400);
-  }
-  if (result.missingOtherReason) {
-    throw createError("Please provide other_reason for the selected cancellation reason.", 400);
+
+  if (result.missingCancellation) {
+    throw createError(
+      "Please submit a cancellation reason before deleting this active advertisement.",
+      400,
+    );
   }
 
   return result;

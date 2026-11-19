@@ -347,6 +347,13 @@ router.post("/list", middleware, getMyAdsController);
  *
  *       If a batch contains multiple currencies, use currency_totals.
  *       Top-level money totals are null rather than combining unlike currencies.
+ *
+ *       The backend caps accepted impressions/clicks at the first applicable
+ *       daily-budget, lifetime-budget or wallet limit. It stores accepted counts
+ *       in impressions/clicks and the submitted counts in reported_impressions/
+ *       reported_clicks. A capped response includes mobile_actions; the app must
+ *       pause or stop the specified ad immediately. Do not resubmit the discarded
+ *       remainder as another batch.
  *     tags: [Ad Analytics]
  *     parameters:
  *       - in: header
@@ -415,7 +422,11 @@ router.post("/list", middleware, getMyAdsController);
  *                 clicks: 8
  *     responses:
  *       200:
- *         description: Batch processed successfully or previously processed.
+ *         description: >
+ *           Batch processed or previously processed. processed_items includes
+ *           accepted and reported counts, analytics_capped, capping_reason,
+ *           limit_reason and mobile_action. mobile_actions instructs the app to
+ *           pause or stop ads whose spending limit has been reached.
  *       400:
  *         description: Invalid batch payload.
  *       401:
@@ -423,7 +434,7 @@ router.post("/list", middleware, getMyAdsController);
  *       404:
  *         description: Ad, campaign, wallet, business, or pricing snapshot not found.
  *       409:
- *         description: Incomplete future interval, duplicate or overlapping interval, invalid campaign state, or persisted budget/wallet rejection.
+ *         description: Incomplete future interval, duplicate or overlapping interval, pricing snapshot boundary overlap, invalid campaign state, or moderation/schedule conflict.
  *       503:
  *         description: Analytics integration key is not configured for the requested platform.
  */
@@ -506,9 +517,10 @@ router.get(
  *         schema: { type: integer }
  *       - in: query
  *         name: period
+ *         description: Performance date range based on the campaign timezone.
  *         schema:
  *           type: string
- *           enum: [this_month, last_month, all_time]
+ *           enum: [this_month, this_year, this_week, last_month, last_year]
  *           default: this_month
  *     responses:
  *       200:

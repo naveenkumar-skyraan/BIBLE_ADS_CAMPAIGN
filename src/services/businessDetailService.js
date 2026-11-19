@@ -87,13 +87,55 @@ function validateCountryAddressFields(country, data) {
   }
 }
 
+
+async function getAllCountryTaxMetadata() {
+  const [rows] = await pool.execute(
+    `SELECT country_code, admin_area_1, tax_name, tax_id_label,
+            tax_rate, platform_fee_rate, tax_basis
+     FROM country_tax_rules
+     WHERE admin_area_1 IS NULL AND is_active = 1 AND effective_from <= UTC_TIMESTAMP()
+       AND (effective_until IS NULL OR effective_until >= UTC_TIMESTAMP())
+     ORDER BY country_code, (admin_area_1 IS NOT NULL) DESC, effective_from DESC, id DESC`,
+  );
+  const byCountry = new Map();
+  for (const row of rows) {
+    if (!byCountry.has(row.country_code)) byCountry.set(row.country_code, row);
+  }
+  return byCountry;
+}
+
+async function getCountryTaxMetadata(countryCode) {
+  const [rows] = await pool.execute(
+    `SELECT tax_name, tax_id_label, tax_rate, platform_fee_rate, tax_basis
+     FROM country_tax_rules
+     WHERE country_code = ? AND admin_area_1 IS NULL AND is_active = 1
+       AND effective_from <= UTC_TIMESTAMP()
+       AND (effective_until IS NULL OR effective_until >= UTC_TIMESTAMP())
+     ORDER BY (admin_area_1 IS NOT NULL) DESC, effective_from DESC, id DESC
+     LIMIT 1`,
+    [countryCode],
+  );
+  const rule = rows[0];
+  return rule ? {
+    configured: true,
+    tax_name: rule.tax_name,
+    tax_id_label: rule.tax_id_label,
+    tax_id_required: false,
+    tax_rate: Number(rule.tax_rate),
+    platform_fee_rate: Number(rule.platform_fee_rate),
+    tax_basis: rule.tax_basis,
+  } : { configured: false, tax_id_label: null, tax_id_required: false, tax_rate: null, platform_fee_rate: null, tax_basis: "base_ad_spend" };
+}
+
 const businessDetailService = {
   async getCountryConfiguration() {
     const currencies = new Map(
       getAllCountryCurrencies().map((item) => [item.country_code, item]),
     );
+    const taxByCountry = await getAllCountryTaxMetadata();
     return getCountries().map((country) => {
       const currency = currencies.get(country.country_code) || null;
+      const taxRule = taxByCountry.get(country.country_code);
       return {
         ...country,
         currency: currency ? {
@@ -103,6 +145,15 @@ const businessDetailService = {
           currency_decimal_places: currency.currency_decimal_places,
           cashfree_supported: currency.cashfree_supported,
         } : null,
+        tax: taxRule ? {
+          configured: true,
+          tax_name: taxRule.tax_name,
+          tax_id_label: taxRule.tax_id_label,
+          tax_id_required: false,
+          tax_rate: Number(taxRule.tax_rate),
+          platform_fee_rate: Number(taxRule.platform_fee_rate),
+          tax_basis: taxRule.tax_basis,
+        } : { configured: false, tax_id_label: null, tax_id_required: false, tax_rate: null, platform_fee_rate: null, tax_basis: "base_ad_spend" },
       };
     });
   },
@@ -119,6 +170,7 @@ const businessDetailService = {
         currency_decimal_places: Number(currency.currency_decimal_places ?? 2),
         cashfree_supported: isCashfreeCurrencySupported(currency.currency_code),
       } : null,
+      tax: await getCountryTaxMetadata(country.country_code),
     };
   },
 

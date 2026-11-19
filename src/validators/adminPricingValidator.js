@@ -28,7 +28,7 @@ const pricingRuleFields = {
 
   platform: Joi.string().valid("all", "android", "ios").required(),
 
-  currency_code: Joi.string().length(3).uppercase().required(),
+  currency_code: Joi.string().valid("USD").required().messages({ "any.only": "Campaign pricing rules must be entered in USD, the base reference currency." }),
 
   rate: Joi.number().positive().max(999999999999.999999).precision(6).required(),
 

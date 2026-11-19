@@ -96,3 +96,18 @@ test("minor-unit rounding handles zero-, two- and three-decimal currencies", () 
     decimalToMicros("1.235000"),
   );
 });
+
+test("country tax is calculated on base spend only and excludes platform fee", () => {
+  const result = calculateAdSpend({
+    impressions: 10_000,
+    clicks: 10,
+    cpmRate: "50.000000",
+    cpcRate: "2.000000",
+    platformFeePercent: 25,
+    gstPercent: 10,
+  });
+  assert.equal(microsToDecimal(result.totalMicros), "520.000000");
+  assert.equal(microsToDecimal(result.platformFeeMicros), "130.000000");
+  assert.equal(microsToDecimal(result.gstMicros), "52.000000");
+  assert.equal(microsToDecimal(result.walletDebitMicros), "702.000000");
+});

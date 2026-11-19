@@ -291,7 +291,7 @@ export const cancelAdController = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Advertisement cancelled successfully.",
+      message: "Cancellation reason submitted successfully. Please confirm deletion.",
       data,
     });
   } catch (error) {
