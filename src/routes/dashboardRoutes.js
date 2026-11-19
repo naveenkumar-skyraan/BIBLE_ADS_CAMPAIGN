@@ -21,13 +21,8 @@ const router = express.Router();
  *     description: >
  *       Returns business selection data, impressions, clicks, spend,
  *       campaign status distribution, spend chart data and top-performing
- *       campaigns. Spend and analytics are read from accepted daily spend
- *       records; this endpoint does not calculate or deduct campaign charges.
+ *       campaigns. Spend and analytics are read from accepted daily spend records.
  *       Base ad spend, platform fee, GST and wallet debit are returned separately.
- *       Calendar periods are calculated using the selected business's saved timezone;
- *       the mobile app does not need to send a timezone.
- *       Currency totals remain separated; aggregate money fields are null when
- *       the selected period contains more than one currency.
  *     tags: [Dashboard]
  *     security:
  *       - bearerAuth: []
