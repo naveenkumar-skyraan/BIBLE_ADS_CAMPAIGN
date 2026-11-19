@@ -9,7 +9,6 @@ export const getDashboardOverviewController = async (req, res, next) => {
       businessId: filters.business_id,
       overviewPeriod: filters.overview_period,
       spendPeriod: filters.spend_period,
-      timezone: filters.timezone,
       topLimit: filters.top_limit,
     });
 

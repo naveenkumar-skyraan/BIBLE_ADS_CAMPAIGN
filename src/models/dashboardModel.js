@@ -1,6 +1,7 @@
 import pool from "../configs/database/db.js";
 import { DateTime } from "luxon";
 import { getCurrencyForCountry, getCurrencyMetadata } from "../utils/currencyConfig.js";
+import { resolveBusinessTimezone } from "../utils/businessTimezone.js";
 
 const PERIODS = new Set([
   "this_month",
@@ -98,7 +99,7 @@ const currencyDetails = (code) => {
 const getBusinessContext = async (userId, requestedBusinessId) => {
   const [businesses] = await pool.execute(
     `
-      SELECT id, name, business_name, country_code, admin_area_1, city, area, is_selected
+      SELECT id, name, business_name, country_code, admin_area_1, admin_area_2, city, area, postal_code, timezone, is_selected
       FROM business_details
       WHERE user_id = ?
         AND is_deleted = 0
@@ -170,7 +171,6 @@ const getDashboardOverview = async ({
   businessId,
   overviewPeriod = "this_month",
   spendPeriod = "this_year",
-  timezone = "Asia/Kolkata",
   topLimit = 5,
 }) => {
   if (!PERIODS.has(overviewPeriod) || !PERIODS.has(spendPeriod)) {
@@ -180,8 +180,29 @@ const getDashboardOverview = async ({
   }
 
   const { businesses, business } = await getBusinessContext(userId, businessId);
-  const overviewRange = dateRange(overviewPeriod, timezone);
-  const spendRange = dateRange(spendPeriod, timezone);
+
+  // Resolve once and persist for existing businesses that predate this column.
+  let businessTimezone = business.timezone;
+  if (!businessTimezone) {
+    businessTimezone = await resolveBusinessTimezone(business);
+    if (!businessTimezone) {
+      const error = new Error(
+        "Business timezone could not be determined. Please update the business location details.",
+      );
+      error.statusCode = 422;
+      throw error;
+    }
+
+    await pool.execute(
+      `UPDATE business_details
+       SET timezone = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND user_id = ? AND is_deleted = 0`,
+      [businessTimezone, business.id, userId],
+    );
+  }
+
+  const overviewRange = dateRange(overviewPeriod, businessTimezone);
+  const spendRange = dateRange(spendPeriod, businessTimezone);
 
   const [overviewTotals, previousTotals, campaignRows, spendRows, topCampaignRows] = await Promise.all([
     getSpendTotals(userId, business.id, overviewRange.start, overviewRange.end),
@@ -335,8 +356,8 @@ const getDashboardOverview = async ({
 
   const spendCurrencies = [...new Set(dailyRows.map((row) => row.currency_code))].sort();
   const chartCurrencies = spendCurrencies.length ? spendCurrencies : currencies;
-  const chartStart = DateTime.fromISO(spendRange.start, { zone: timezone });
-  const chartEnd = DateTime.fromISO(spendRange.end, { zone: timezone });
+  const chartStart = DateTime.fromISO(spendRange.start, { zone: businessTimezone });
+  const chartEnd = DateTime.fromISO(spendRange.end, { zone: businessTimezone });
   const chartData = [];
 
   for (
@@ -384,7 +405,7 @@ const getDashboardOverview = async ({
   };
 
   return {
-    businesses: businesses.map(({ id, name, business_name, country_code, admin_area_1, city, area, is_selected }) => {
+    businesses: businesses.map(({ id, name, business_name, country_code, admin_area_1, city, area, timezone: savedTimezone, is_selected }) => {
       const businessCurrencyDetails = getCurrencyForCountry(country_code);
       return {
         id: Number(id),
@@ -394,6 +415,7 @@ const getDashboardOverview = async ({
         admin_area_1,
         city,
         area,
+        timezone: Number(id) === Number(business.id) ? businessTimezone : savedTimezone || null,
         is_selected: Boolean(Number(is_selected)),
         currency: businessCurrencyDetails,
       };
@@ -407,11 +429,12 @@ const getDashboardOverview = async ({
       city: business.city,
       area: business.area,
       currency: businessCurrency,
+      timezone: businessTimezone,
     },
     filters: {
       overview_period: overviewPeriod,
       spend_period: spendPeriod,
-      timezone,
+      timezone: businessTimezone,
       overview: overviewRange,
       spend: spendRange,
     },

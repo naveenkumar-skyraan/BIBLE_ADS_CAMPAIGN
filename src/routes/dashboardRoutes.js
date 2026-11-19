@@ -24,6 +24,8 @@ const router = express.Router();
  *       campaigns. Spend and analytics are read from accepted daily spend
  *       records; this endpoint does not calculate or deduct campaign charges.
  *       Base ad spend, platform fee, GST and wallet debit are returned separately.
+ *       Calendar periods are calculated using the selected business's saved timezone;
+ *       the mobile app does not need to send a timezone.
  *       Currency totals remain separated; aggregate money fields are null when
  *       the selected period contains more than one currency.
  *     tags: [Dashboard]
@@ -48,10 +50,6 @@ const router = express.Router();
  *                 type: string
  *                 enum: [this_month, this_year, this_week, last_month, last_year]
  *                 default: this_year
- *               timezone:
- *                 type: string
- *                 default: Asia/Kolkata
- *                 description: IANA timezone used to calculate the requested calendar periods.
  *               top_limit:
  *                 type: integer
  *                 minimum: 1
@@ -61,7 +59,7 @@ const router = express.Router();
  *       200:
  *         description: Dashboard overview retrieved successfully.
  *       400:
- *         description: Invalid dashboard filters or timezone.
+ *         description: Invalid dashboard filters.
  *       401:
  *         description: Missing, invalid, or expired access token.
  *       404:

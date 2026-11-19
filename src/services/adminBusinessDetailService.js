@@ -1,5 +1,6 @@
 import pool from "../configs/database/db.js";
 import businessDetailModel from "../models/businessDetailModel.js";
+import { resolveBusinessTimezone } from "../utils/businessTimezone.js";
 
 import { getListingData } from "../helpers/listingHelper.js";
 
@@ -117,12 +118,12 @@ export const updateAdminBusinessDetails = async (id, data) => {
     await connection.beginTransaction();
 
     const [rows] = await connection.execute(
-      `SELECT id, verification_status
-             FROM business_details
-             WHERE id = ?
-               AND is_deleted = 0
-             LIMIT 1
-             FOR UPDATE`,
+      `SELECT *
+       FROM business_details
+       WHERE id = ?
+         AND is_deleted = 0
+       LIMIT 1
+       FOR UPDATE`,
       [id],
     );
 
@@ -141,10 +142,26 @@ export const updateAdminBusinessDetails = async (id, data) => {
       throw error;
     }
 
+    const merged = { ...rows[0], ...data };
+    const locationFields = [
+      "country_code",
+      "admin_area_1",
+      "admin_area_2",
+      "city",
+      "area",
+      "postal_code",
+    ];
+    const locationChanged = locationFields.some((field) =>
+      Object.hasOwn(data, field),
+    );
+    const timezone = locationChanged
+      ? await resolveBusinessTimezone(merged)
+      : rows[0].timezone;
+
     const updated = await businessDetailModel.updateAdminBusinessDetails(
       connection,
       id,
-      data,
+      { ...data, timezone },
     );
 
     if (!updated) {
