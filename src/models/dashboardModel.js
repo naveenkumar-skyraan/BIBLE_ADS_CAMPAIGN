@@ -5,8 +5,7 @@ import { getCurrencyForCountry, getCurrencyMetadata } from "../utils/currencyCon
 const PERIODS = new Set([
   "this_month",
   "this_year",
-  "last_7_days",
-  "last_30_days",
+  "this_week",
   "last_month",
   "last_year",
 ]);
@@ -31,17 +30,11 @@ const dateRange = (period, timezone) => {
       previousStart = start.minus({ years: 1 });
       previousEnd = end.minus({ years: 1 });
       break;
-    case "last_7_days":
+    case "this_week":
       end = now.startOf("day");
       start = end.minus({ days: 6 });
       previousEnd = start.minus({ days: 1 });
       previousStart = previousEnd.minus({ days: 6 });
-      break;
-    case "last_30_days":
-      end = now.startOf("day");
-      start = end.minus({ days: 29 });
-      previousEnd = start.minus({ days: 1 });
-      previousStart = previousEnd.minus({ days: 29 });
       break;
     case "last_month":
       start = now.minus({ months: 1 }).startOf("month");

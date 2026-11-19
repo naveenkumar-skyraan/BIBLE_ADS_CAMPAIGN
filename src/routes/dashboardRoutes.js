@@ -42,11 +42,11 @@ const router = express.Router();
  *                 description: Owned business ID. Defaults to the selected business, or the most recently created business.
  *               overview_period:
  *                 type: string
- *                 enum: [this_month, this_year, last_7_days, last_30_days, last_month, last_year]
+ *                 enum: [this_month, this_year, this_week, last_month, last_year]
  *                 default: this_month
  *               spend_period:
  *                 type: string
- *                 enum: [this_month, this_year, last_7_days, last_30_days, last_month, last_year]
+ *                 enum: [this_month, this_year, this_week, last_month, last_year]
  *                 default: this_year
  *               timezone:
  *                 type: string
