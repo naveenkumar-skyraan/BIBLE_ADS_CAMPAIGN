@@ -99,6 +99,7 @@ export const getAdById = async (adId, userId) => {
             a.platform,
             a.status,
             a.moderation_status,
+            a.is_cancelled,
             a.last_completed_step,
             LEAST(a.last_completed_step + 1, 3) AS resume_step,
             CASE
@@ -164,8 +165,9 @@ export const updateAd = async (adId, userId, data, fileData = null) => {
              FROM ads
             WHERE id = ?
   AND user_id = ?
-  AND status IN ('draft', 'active', 'paused')
+  AND status IN ('draft', 'active', 'paused', 'completed')
   AND moderation_status <> 'under_review'
+  AND is_cancelled = 0
   AND is_deleted = 0
 LIMIT 1
 FOR UPDATE`,
@@ -339,6 +341,9 @@ export const getAdDetailsForView = async (
         a.platform,
         a.status AS ad_status,
         a.moderation_status,
+        a.is_cancelled,
+        CASE WHEN a.moderation_status = 'blocked' THEN COALESCE(mh.blocked_at, a.updated_at) ELSE NULL END AS blocked_at,
+        CASE WHEN a.moderation_status = 'blocked' THEN UNIX_TIMESTAMP(COALESCE(mh.blocked_at, a.updated_at)) ELSE NULL END AS blocked_at_timestamp,
         a.created_at AS ad_created_at,
         a.updated_at AS ad_updated_at,
         m.id AS media_id,
@@ -370,7 +375,7 @@ export const getAdDetailsForView = async (
         COALESCE(perf.clicks, 0) AS clicks,
         COALESCE(perf.total_spend, 0) AS spend
       FROM ads a
-      INNER JOIN business_details bd
+      LEFT JOIN business_details bd
         ON bd.id = a.business_id AND bd.user_id = a.user_id AND bd.is_deleted = 0
       LEFT JOIN ad_objectives ao ON ao.id = a.objective_id
       LEFT JOIN ad_types at ON at.id = a.ad_type_id
@@ -380,6 +385,27 @@ export const getAdDetailsForView = async (
       LEFT JOIN ad_campaigns c
         ON c.id = a.campaign_id AND c.user_id = a.user_id AND c.is_deleted = 0
       LEFT JOIN ad_location_targets lt ON lt.ad_id = a.id
+      LEFT JOIN (
+        SELECT
+          blocked_events.ad_id,
+          MAX(blocked_events.created_at) AS blocked_at
+        FROM ad_moderation_history blocked_events
+        WHERE blocked_events.event_type IN ('blocked', 'rejected')
+          AND NOT EXISTS (
+            SELECT 1
+            FROM ad_moderation_history approved_events
+            WHERE approved_events.ad_id = blocked_events.ad_id
+              AND approved_events.event_type = 'approved'
+              AND (
+                approved_events.created_at > blocked_events.created_at
+                OR (
+                  approved_events.created_at = blocked_events.created_at
+                  AND approved_events.id > blocked_events.id
+                )
+              )
+          )
+        GROUP BY blocked_events.ad_id
+      ) mh ON mh.ad_id = a.id
       LEFT JOIN (
         SELECT campaign_id,
                SUM(impressions) AS impressions,
@@ -437,6 +463,10 @@ export const getAdDetailsForView = async (
       platform: row.platform,
       status: row.ad_status,
       moderation_status: row.moderation_status,
+      is_cancelled: Number(row.is_cancelled),
+      blocked_at: row.blocked_at,
+      blocked_at_timestamp:
+        row.blocked_at_timestamp === null ? null : Number(row.blocked_at_timestamp),
       created_at: row.ad_created_at,
       updated_at: row.ad_updated_at,
       media: row.media_id
@@ -514,7 +544,8 @@ export const getAdEstimationInputs = async (adId, userId) => {
         ON m.ad_id = a.id
         AND m.is_active = 1
       WHERE a.id = ?
-      AND a.is_deleted = 0
+      AND a.is_cancelled = 0
+        AND a.is_deleted = 0
         AND a.user_id = ?
       LIMIT 1
     `,
@@ -534,8 +565,9 @@ export const getAdTypeInfoForUpdate = async (adId, userId) => {
      WHERE id = ?
        AND user_id = ?
        AND is_deleted = 0
-       AND status IN ('draft', 'active', 'paused')
+       AND status IN ('draft', 'active', 'paused', 'completed')
        AND moderation_status <> 'under_review'
+       AND is_cancelled = 0
      LIMIT 1`,
     [adId, userId],
   );
@@ -621,6 +653,7 @@ export const getMyAds = async (userId, { status, search, limit, offset }) => {
           THEN 1 ELSE 0
         END AS is_scheduled,
         a.moderation_status,
+        a.is_cancelled,
         a.created_at,
         a.updated_at,
 
@@ -681,6 +714,7 @@ export const pauseAd = async (adId, userId) => {
           a.campaign_id,
           a.status AS ad_status,
           a.moderation_status,
+          a.is_cancelled,
           c.status AS campaign_status
         FROM ads a
         INNER JOIN ad_campaigns c ON c.id = a.campaign_id
@@ -700,7 +734,7 @@ export const pauseAd = async (adId, userId) => {
 
     const ad = rows[0];
 
-    if (ad.ad_status !== "active" || ad.campaign_status !== "active") {
+    if (ad.is_cancelled || ad.ad_status !== "active" || ad.campaign_status !== "active") {
       throw createError("Only active ads can be paused.", 409);
     }
 
@@ -804,6 +838,7 @@ export const resumeAd = async (adId, userId) => {
           a.campaign_id,
           a.status AS ad_status,
           a.moderation_status,
+          a.is_cancelled,
           c.status AS campaign_status,
           c.pause_reason,
           c.paused_at,
@@ -826,7 +861,7 @@ export const resumeAd = async (adId, userId) => {
     const ad = rows[0];
     const now = Math.floor(Date.now() / 1000);
 
-    if (ad.ad_status !== "paused" || ad.campaign_status !== "paused") {
+    if (ad.is_cancelled || ad.ad_status !== "paused" || ad.campaign_status !== "paused") {
       throw createError("Only paused ads can be resumed.", 409);
     }
     if (ad.moderation_status !== "none") {
@@ -1161,7 +1196,7 @@ export const deleteAd = async (adId, userId) => {
           a.id AS ad_id,
           a.campaign_id,
           a.status AS ad_status,
-          a.moderation_status,
+          a.is_cancelled,
           c.status AS campaign_status,
           c.campaign_code,
           c.is_deleted AS campaign_is_deleted
@@ -1172,6 +1207,7 @@ export const deleteAd = async (adId, userId) => {
         WHERE a.id = ?
           AND a.user_id = ?
           AND a.is_deleted = 0
+          AND (a.campaign_id IS NULL OR c.id IS NOT NULL)
           AND (a.campaign_id IS NULL OR c.is_deleted = 0)
         LIMIT 1
         FOR UPDATE
@@ -1185,42 +1221,11 @@ export const deleteAd = async (adId, userId) => {
     }
 
     const ad = rows[0];
-    let cancellationId = null;
-
-    // Active advertisements must have a previously submitted
-    // cancellation reason.
-    if (ad.ad_status === "active") {
-      if (!ad.campaign_id || ad.campaign_status !== "active") {
-        await connection.rollback();
-        return { invalidState: true };
-      }
-
-      const [pendingRows] = await connection.execute(
-        `
-          SELECT id
-          FROM ad_campaign_cancellations
-          WHERE campaign_id = ?
-            AND ad_id = ?
-            AND user_id = ?
-            AND cancelled_at IS NULL
-          ORDER BY id DESC
-          LIMIT 1
-          FOR UPDATE
-        `,
-        [ad.campaign_id, adId, userId],
-      );
-
-      if (!pendingRows.length) {
-        await connection.rollback();
-        return { missingCancellation: true };
-      }
-
-      cancellationId = pendingRows[0].id;
-    }
-
     const deletedAt = Math.floor(Date.now() / 1000);
+    const isCancelled = Number(ad.is_cancelled) === 1 || ad.ad_status === "active";
 
-    // Delete campaign and stop billing.
+    // Deleting an active ad stops the campaign immediately. No cancellation
+    // reason or prior cancellation API call is required.
     if (ad.campaign_id) {
       const [campaignResult] = await connection.execute(
         `
@@ -1242,49 +1247,23 @@ export const deleteAd = async (adId, userId) => {
       }
     }
 
-    // Soft-delete the associated ad.
     const [adResult] = await connection.execute(
       `
         UPDATE ads
         SET
           is_deleted = 1,
+          is_cancelled = ?,
           deleted_at = ?,
           updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
           AND user_id = ?
           AND is_deleted = 0
       `,
-      [deletedAt, adId, userId],
+      [isCancelled ? 1 : 0, deletedAt, adId, userId],
     );
 
     if (adResult.affectedRows !== 1) {
       throw new Error("Ad could not be deleted.");
-    }
-
-    // Mark the existing cancellation record as confirmed.
-    if (cancellationId !== null) {
-      const [cancellationResult] = await connection.execute(
-        `
-          UPDATE ad_campaign_cancellations
-          SET cancelled_at = ?
-          WHERE id = ?
-            AND campaign_id = ?
-            AND ad_id = ?
-            AND user_id = ?
-            AND cancelled_at IS NULL
-        `,
-        [
-          deletedAt,
-          cancellationId,
-          ad.campaign_id,
-          adId,
-          userId,
-        ],
-      );
-
-      if (cancellationResult.affectedRows !== 1) {
-        throw new Error("Cancellation confirmation could not be recorded.");
-      }
     }
 
     await connection.commit();
@@ -1292,13 +1271,9 @@ export const deleteAd = async (adId, userId) => {
     return {
       notFound: false,
       ad_id: String(adId),
-      campaign_id: ad.campaign_id == null
-        ? null
-        : String(ad.campaign_id),
+      campaign_id: ad.campaign_id == null ? null : String(ad.campaign_id),
       campaign_code: ad.campaign_code || null,
-      cancellation_id: cancellationId === null
-        ? null
-        : String(cancellationId),
+      is_cancelled: isCancelled ? 1 : 0,
       deleted_at: deletedAt,
     };
   } catch (error) {
@@ -1308,7 +1283,6 @@ export const deleteAd = async (adId, userId) => {
     connection.release();
   }
 };
-
 
 
 export const cancelActiveAd = async (adId, userId, data) => {
@@ -1323,6 +1297,7 @@ export const cancelActiveAd = async (adId, userId, data) => {
           a.id AS ad_id,
           a.campaign_id,
           a.status AS ad_status,
+          a.is_cancelled,
           c.user_id,
           c.campaign_code,
           c.status AS campaign_status
@@ -1346,11 +1321,18 @@ export const cancelActiveAd = async (adId, userId, data) => {
     }
 
     const ad = rows[0];
-
-    if (
-      ad.ad_status !== "active" ||
-      ad.campaign_status !== "active"
-    ) {
+    if (Number(ad.is_cancelled) === 1) {
+      await connection.rollback();
+      return {
+        alreadyCancelled: true,
+        notFound: false,
+        ad_id: String(adId),
+        campaign_id: String(ad.campaign_id),
+        campaign_code: ad.campaign_code,
+        is_cancelled: 1,
+      };
+    }
+    if (ad.ad_status !== "active" || ad.campaign_status !== "active") {
       await connection.rollback();
       return { invalidState: true };
     }
@@ -1359,8 +1341,7 @@ export const cancelActiveAd = async (adId, userId, data) => {
       `
         SELECT id, reason_text, requires_other
         FROM ad_cancellation_reasons
-        WHERE id = ?
-          AND is_active = 1
+        WHERE id = ? AND is_active = 1
         LIMIT 1
       `,
       [data.reason_id],
@@ -1373,48 +1354,39 @@ export const cancelActiveAd = async (adId, userId, data) => {
 
     const selectedReason = reasonRows[0];
     const otherReason = data.other_reason?.trim() || null;
-
     if (Number(selectedReason.requires_other) === 1 && !otherReason) {
       await connection.rollback();
       return { missingOtherReason: true };
     }
 
-    // Check for an existing pending cancellation request.
-    const [pendingRows] = await connection.execute(
+    // uq_campaign_cancellation permits only one cancellation row per campaign.
+    // Locking the ad/campaign above serializes retries; update the existing row
+    // instead of issuing a duplicate INSERT.
+    const [existingCancellationRows] = await connection.execute(
       `
         SELECT id
         FROM ad_campaign_cancellations
         WHERE campaign_id = ?
-          AND ad_id = ?
-          AND user_id = ?
-          AND cancelled_at IS NULL
-        ORDER BY id DESC
         LIMIT 1
         FOR UPDATE
       `,
-      [ad.campaign_id, adId, userId],
+      [ad.campaign_id],
     );
 
     let cancellationId;
-
-    if (pendingRows.length) {
-      // Update the existing pending request instead of creating duplicates.
-      cancellationId = pendingRows[0].id;
-
+    if (existingCancellationRows.length) {
+      cancellationId = existingCancellationRows[0].id;
       await connection.execute(
         `
           UPDATE ad_campaign_cancellations
           SET reason_id = ?,
-              other_reason = ?
-          WHERE id = ?
-            AND user_id = ?
-            AND cancelled_at IS NULL
+              other_reason = ?,
+              cancelled_at = CURRENT_TIMESTAMP
+          WHERE id = ? AND user_id = ?
         `,
         [
           selectedReason.id,
-          Number(selectedReason.requires_other) === 1
-            ? otherReason
-            : null,
+          Number(selectedReason.requires_other) === 1 ? otherReason : null,
           cancellationId,
           userId,
         ],
@@ -1430,27 +1402,59 @@ export const cancelActiveAd = async (adId, userId, data) => {
             other_reason,
             cancelled_at
           )
-          VALUES (?, ?, ?, ?, ?, UNIX_TIMESTAMP())
+          VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         `,
         [
           ad.campaign_id,
           adId,
           userId,
           selectedReason.id,
-          Number(selectedReason.requires_other) === 1
-            ? otherReason
-            : null,
+          Number(selectedReason.requires_other) === 1 ? otherReason : null,
         ],
       );
-
       cancellationId = insertResult.insertId;
     }
 
-    // IMPORTANT:
-    // Do not delete the ad.
-    // Do not delete the campaign.
-    // Do not change either status.
-    // Do not stop billing.
+    const cancelledAt = Math.floor(Date.now() / 1000);
+
+    const [campaignUpdate] = await connection.execute(
+      `
+        UPDATE ad_campaigns
+        SET
+          status = 'paused',
+          pause_reason = 'manual',
+          resume_at = NULL,
+          paused_at = ?,
+          billing_stopped_at = COALESCE(billing_stopped_at, ?),
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+          AND user_id = ?
+          AND status = 'active'
+          AND is_deleted = 0
+      `,
+      [cancelledAt, cancelledAt, ad.campaign_id, userId],
+    );
+    if (campaignUpdate.affectedRows !== 1) {
+      throw new Error("Campaign could not be cancelled.");
+    }
+
+    const [adUpdate] = await connection.execute(
+      `
+        UPDATE ads
+        SET status = 'paused',
+            is_cancelled = 1,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+          AND user_id = ?
+          AND status = 'active'
+          AND is_cancelled = 0
+          AND is_deleted = 0
+      `,
+      [adId, userId],
+    );
+    if (adUpdate.affectedRows !== 1) {
+      throw new Error("Advertisement could not be cancelled.");
+    }
 
     await connection.commit();
 
@@ -1462,8 +1466,8 @@ export const cancelActiveAd = async (adId, userId, data) => {
       campaign_code: ad.campaign_code,
       cancellation_id: String(cancellationId),
       reason_id: Number(selectedReason.id),
-      cancellation_submitted: true,
-      deletion_confirmed: false,
+      is_cancelled: 1,
+      cancelled_at: cancelledAt,
     };
   } catch (error) {
     await connection.rollback();
@@ -1472,4 +1476,3 @@ export const cancelActiveAd = async (adId, userId, data) => {
     connection.release();
   }
 };
-

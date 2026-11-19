@@ -292,6 +292,7 @@ const saveCampaign = async (adId, userId, data, schedule = null) => {
           AND user_id = ?
           AND status IN ('draft', 'active', 'paused')
           AND moderation_status <> 'under_review'
+          AND is_cancelled = 0
           AND is_deleted = 0
         LIMIT 1
         FOR UPDATE
@@ -1018,6 +1019,7 @@ const getDraftCampaignForPublish = async (adId, userId) => {
         AND a.user_id = ?
         AND a.status IN ('draft', 'active', 'paused')
         AND a.moderation_status <> 'under_review'
+        AND a.is_cancelled = 0
         AND a.is_deleted = 0
         AND c.user_id = ?
         AND c.status IN ('draft', 'active', 'paused')
@@ -1423,6 +1425,7 @@ const getCompletedCampaignForRepublish = async (adId, userId) => {
         AND a.user_id = ?
         AND a.status = 'completed'
         AND c.status = 'completed'
+        AND a.is_cancelled = 0
         AND a.is_deleted = 0
         AND c.is_deleted = 0
       LIMIT 1
@@ -1484,6 +1487,7 @@ const republishCompletedCampaign = async (
           AND a.user_id = ?
           AND a.status = 'completed'
           AND c.status = 'completed'
+          AND a.is_cancelled = 0
           AND a.is_deleted = 0
           AND c.is_deleted = 0
         LIMIT 1

@@ -199,6 +199,24 @@ const adSchema = {
         type: "string",
         example: "draft",
       },
+      is_cancelled: {
+        type: "integer",
+        enum: [0, 1],
+        description: "1 when the advertisement has been cancelled; otherwise 0.",
+        example: 0,
+      },
+      blocked_at: {
+        type: "string",
+        format: "date-time",
+        nullable: true,
+        description: "UTC date and time when the current moderation block/rejection began.",
+      },
+      blocked_at_timestamp: {
+        type: "integer",
+        format: "int64",
+        nullable: true,
+        description: "Unix timestamp in seconds for blocked_at.",
+      },
       media_id: {
         type: "integer",
         nullable: true,

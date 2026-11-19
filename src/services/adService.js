@@ -151,7 +151,7 @@ export const updateAd = async (adId, userId, data, file) => {
   const existingAd = await model.getAdTypeInfoForUpdate(adId, userId);
   if (!existingAd) {
     throw createError(
-      "Ad not found or not editable. Only draft, active and paused ads can be edited.",
+      "Ad not found or not editable. Draft, active, paused and completed ads can be edited.",
       404,
     );
   }
@@ -213,7 +213,7 @@ export const updateAd = async (adId, userId, data, file) => {
 
   if (result.notFound) {
     throw createError(
-      "Ad not found or not editable. Only draft, active and paused ads can be edited.",
+      "Ad not found or not editable. Draft, active, paused and completed ads can be edited.",
       404,
     );
   }
@@ -394,13 +394,6 @@ export const deleteAd = async (adId, userId) => {
     throw createError(
       "Advertisement cannot be deleted in its current state.",
       409,
-    );
-  }
-
-  if (result.missingCancellation) {
-    throw createError(
-      "Please submit a cancellation reason before deleting this active advertisement.",
-      400,
     );
   }
 
