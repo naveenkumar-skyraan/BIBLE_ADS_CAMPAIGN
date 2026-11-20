@@ -540,6 +540,7 @@ export const getAdEstimationInputs = async (adId, userId) => {
         a.ad_subtype_id,
         a.platform,
         a.business_id,
+        a.campaign_id,
         a.status,
         bd.country_code,
         bd.admin_area_1,
@@ -554,9 +555,11 @@ export const getAdEstimationInputs = async (adId, userId) => {
         ON m.ad_id = a.id
         AND m.is_active = 1
       WHERE a.id = ?
-      AND a.is_cancelled = 0
-        AND a.is_deleted = 0
         AND a.user_id = ?
+        AND a.status IN ('draft', 'active', 'paused')
+        AND COALESCE(a.moderation_status, 'none') NOT IN ('blocked', 'under_review')
+        AND a.is_cancelled = 0
+        AND a.is_deleted = 0
       LIMIT 1
     `,
     [adId, userId],

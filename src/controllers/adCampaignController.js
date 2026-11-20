@@ -51,6 +51,26 @@ const adCampaignController = {
     }
   },
 
+  async getCampaignBudgetQuote(req, res, next) {
+    try {
+      const adId = parseAdId(req.params.id);
+      const data = validate(saveCampaignSchema, req.body);
+      const result = await adCampaignService.getCampaignBudgetQuote(
+        adId,
+        req.user.id,
+        data,
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: "Campaign budget quote calculated successfully.",
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async saveCampaign(req, res, next) {
     try {
       const adId = parseAdId(req.params.id);

@@ -1,5 +1,4 @@
 import * as model from "../models/adCampaignModel.js";
-import { getWalletByUserId } from "../models/walletModel.js";
 import * as adModel from "../models/adModel.js";
 import estimateAdPerformance from "./adEstimationService.js";
 import { getTarget } from "../models/adLocationModel.js";
@@ -7,10 +6,12 @@ import { DateTime } from "luxon";
 import {
   decimalToMicros,
   microsToDecimal,
+  microsToCurrencyDecimal,
   calculatePercentageMicros,
   PLATFORM_FEE_PERCENT,
   GST_PERCENT,
 } from "../utils/adSpendCalculator.js";
+import { calculateWalletPayableMicros } from "../utils/campaignWalletFunding.js";
 import { getBusinessTaxConfiguration } from "../utils/taxConfig.js";
 import {
   getCurrencyForCountry,
@@ -202,8 +203,226 @@ const calculatePaymentSummary = (dailyBudget, durationDays, savedTotalBudget = n
     tax_basis: "base_ad_spend",
     gst_percentage: taxPercent,
     gst_amount: microsToDecimal(gstMicros),
+    tax_amount: microsToDecimal(gstMicros),
     total_payable: microsToDecimal(payableMicros),
     currency: null,
+  };
+};
+
+const calculateWalletAvailability = async ({
+  userId,
+  ad,
+  currency,
+  paymentSummary,
+  durationDays,
+  taxConfiguration,
+}) => {
+  const context = await model.getCampaignBudgetQuoteWalletContext(
+    userId,
+    currency.currency_code,
+    ad.campaign_id ?? null,
+  );
+
+  if (
+    ["active", "paused"].includes(ad.status) &&
+    context.current_campaign_currency &&
+    context.current_campaign_currency !== currency.currency_code
+  ) {
+    throw createError(
+      "The currency of a published campaign cannot be changed. Create a new campaign using the business's current country currency.",
+      409,
+    );
+  }
+
+  const walletBalanceMicros = decimalToMicros(context.wallet_balance);
+  const existingCommitmentMicros = decimalToMicros(
+    context.existing_campaign_commitment,
+  );
+  const availableAfterCommitmentsMicros =
+    walletBalanceMicros - existingCommitmentMicros;
+  const spentMicros = ["active", "paused"].includes(ad.status)
+    ? decimalToMicros(context.current_campaign_spent)
+    : 0n;
+  const campaignBudgetMicros = decimalToMicros(
+    paymentSummary.actual_campaign_budget,
+  );
+  const campaignBudgetValid = campaignBudgetMicros >= spentMicros;
+  const remainingCampaignBudgetMicros = campaignBudgetValid
+    ? campaignBudgetMicros - spentMicros
+    : 0n;
+
+  const currentCampaignPayable = calculateWalletPayableMicros(
+    remainingCampaignBudgetMicros,
+    taxConfiguration.platform_fee_rate,
+    taxConfiguration.tax_rate,
+  );
+  const currentCampaignRequiredMicros = currentCampaignPayable.payableMicros;
+  const totalRequiredMicros =
+    existingCommitmentMicros + currentCampaignRequiredMicros;
+  const additionalRequiredMicros = totalRequiredMicros > walletBalanceMicros
+    ? totalRequiredMicros - walletBalanceMicros
+    : 0n;
+  const sufficientBalance =
+    campaignBudgetValid && walletBalanceMicros >= totalRequiredMicros;
+
+  // Calculate an affordable daily-budget ceiling after reserving the other
+  // campaigns' remaining budgets, fees and taxes. Round down to the business
+  // currency's minor unit so the value can never exceed the available wallet.
+  const usableWalletMicros = availableAfterCommitmentsMicros > 0n
+    ? availableAfterCommitmentsMicros
+    : 0n;
+  const feeBasisPoints = BigInt(
+    Math.round(Number(taxConfiguration.platform_fee_rate) * 100),
+  );
+  const taxBasisPoints = BigInt(
+    Math.round(Number(taxConfiguration.tax_rate) * 100),
+  );
+  const payableBasisPoints = 10000n + feeBasisPoints + taxBasisPoints;
+  const affordableBaseBudgetMicros = payableBasisPoints > 0n
+    ? (usableWalletMicros * 10000n) / payableBasisPoints + spentMicros
+    : 0n;
+  const hasValidDuration = Number.isInteger(Number(durationDays)) && Number(durationDays) > 0;
+  const rawMaximumDailyBudgetMicros = hasValidDuration
+    ? affordableBaseBudgetMicros / BigInt(durationDays)
+    : 0n;
+  const minorUnitScale = 10n ** BigInt(6 - currency.currency_decimal_places);
+  const maximumDailyBudgetMicros =
+    (rawMaximumDailyBudgetMicros / minorUnitScale) * minorUnitScale;
+
+  const wallet = {
+    available_balance: microsToDecimal(walletBalanceMicros),
+    currency: currency.currency_code,
+    existing_campaign_commitment: microsToDecimal(existingCommitmentMicros),
+    existing_campaign_count: Number(context.existing_campaign_count || 0),
+    available_after_commitments: microsToDecimal(
+      availableAfterCommitmentsMicros,
+    ),
+    current_campaign_spent: microsToDecimal(spentMicros),
+    current_campaign_remaining_budget: microsToDecimal(
+      remainingCampaignBudgetMicros,
+    ),
+    current_campaign_required: microsToDecimal(
+      currentCampaignRequiredMicros,
+    ),
+    campaign_required_amount: microsToDecimal(
+      currentCampaignRequiredMicros,
+    ),
+    // Keep required_amount backward-compatible: it is this campaign's own
+    // amount. total_required includes other campaigns' outstanding commitments.
+    required_amount: microsToDecimal(currentCampaignRequiredMicros),
+    total_required: microsToDecimal(totalRequiredMicros),
+    additional_amount_required: microsToDecimal(additionalRequiredMicros),
+    maximum_daily_budget: microsToCurrencyDecimal(
+      maximumDailyBudgetMicros,
+      currency.currency_decimal_places,
+    ),
+    sufficient_balance: sufficientBalance,
+    can_continue: sufficientBalance,
+  };
+
+  return {
+    wallet,
+    validation: {
+      is_valid_budget: campaignBudgetValid,
+      code: !campaignBudgetValid
+        ? "BUDGET_BELOW_AMOUNT_ALREADY_SPENT"
+        : sufficientBalance
+          ? "OK"
+          : "INSUFFICIENT_WALLET_BALANCE",
+      message: !campaignBudgetValid
+        ? "The updated campaign budget cannot be lower than the amount already spent."
+        : sufficientBalance
+          ? null
+          : "Insufficient wallet balance. Please add funds or reduce the campaign budget or duration.",
+    },
+  };
+};
+
+const buildCampaignBudgetQuote = async (adId, userId, data) => {
+  const ad = await adModel.getAdEstimationInputs(adId, userId);
+  if (!ad) {
+    throw createError("Ad details, business or active media not found.", 404);
+  }
+
+  if (!Number.isFinite(MIN_DAILY_BUDGET) || MIN_DAILY_BUDGET <= 0) {
+    throw new Error("MIN_DAILY_BUDGET must be a positive number.");
+  }
+
+  // Currency and tax are based on the selected business country, not the
+  // campaign's target location.
+  const currency = getCurrencyForCountry(ad.country_code);
+  const dailyBudget = normalizeMoneyAmount(data.daily_budget, currency.currency_code, {
+    min: MIN_DAILY_BUDGET,
+  });
+
+  const target = await getTarget(adId, userId);
+  if (!target) {
+    throw createError(
+      "Please complete location targeting before configuring the campaign.",
+      400,
+    );
+  }
+  const timezone = validateTimezone(target.timezone);
+
+  let durationDays;
+  let startDate = null;
+  let endDate = null;
+  if (data.duration_type === "days") {
+    durationDays = data.duration_days;
+  } else {
+    startDate = data.start_date;
+    endDate = data.end_date;
+    durationDays = calculateCustomDurationDays(startDate, endDate, timezone);
+  }
+
+  if (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > 3660) {
+    throw createError("Campaign duration must be between 1 and 3660 days.", 400);
+  }
+
+  const schedule = buildCampaignSchedule({
+    duration_type: data.duration_type,
+    duration_days: durationDays,
+    start_date: startDate,
+    end_date: endDate,
+    timezone,
+  });
+  const taxConfiguration = await getBusinessTaxConfiguration(ad.business_id);
+  const paymentSummary = calculatePaymentSummary(
+    dailyBudget,
+    durationDays,
+    null,
+    taxConfiguration,
+  );
+  paymentSummary.currency = currency.currency_code;
+  paymentSummary.currency_code = currency.currency_code;
+  paymentSummary.currency_symbol = currency.currency_symbol;
+
+  const walletAvailability = await calculateWalletAvailability({
+    userId,
+    ad,
+    currency,
+    paymentSummary,
+    durationDays,
+    taxConfiguration,
+  });
+
+  return {
+    currency,
+    campaign: {
+      ad_id: Number(adId),
+      daily_budget: paymentSummary.daily_budget,
+      duration_type: data.duration_type,
+      duration_days: durationDays,
+      start_date: schedule.startDate,
+      end_date: schedule.endDate,
+      start_timestamp: schedule.startTimestamp,
+      end_timestamp: schedule.endTimestamp,
+      campaign_status: schedule.campaignStatus,
+      timezone,
+    },
+    payment_summary: paymentSummary,
+    wallet: walletAvailability.wallet,
+    validation: walletAvailability.validation,
   };
 };
 
@@ -231,100 +450,44 @@ const buildEstimation = async (ad, currencyCode, budget) => {
 };
 
 const saveCampaign = async (adId, userId, data) => {
-  const ad = await adModel.getAdEstimationInputs(adId, userId);
-  if (!ad) throw createError("Ad details, business or active media not found.", 404);
-
-  if (!Number.isFinite(MIN_DAILY_BUDGET) || MIN_DAILY_BUDGET <= 0) {
-    throw new Error("MIN_DAILY_BUDGET must be a positive number.");
-  }
-  const currency = getCurrencyForCountry(ad.country_code);
-  const dailyBudget = normalizeMoneyAmount(data.daily_budget, currency.currency_code, {
-    min: MIN_DAILY_BUDGET,
-  });
-  const dailyBudgetMicros = decimalToMicros(dailyBudget);
-  const wallet = await getWalletByUserId(userId, currency.currency_code);
-  if (!wallet) throw createError("Wallet not found. Please add funds first.", 404);
-
-  const availableBalanceMicros = decimalToMicros(wallet.balance || 0);
-  const isPublishedEditableCampaign = ["active", "paused"].includes(ad.status);
-  if (!isPublishedEditableCampaign && availableBalanceMicros < dailyBudgetMicros) {
-    throw createError("Daily budget cannot exceed the available wallet balance.", 400, {
-      currency: currency.currency_code,
-      available_balance: microsToDecimal(availableBalanceMicros),
-      minimum_daily_budget: MIN_DAILY_BUDGET,
+  const quote = await buildCampaignBudgetQuote(adId, userId, data);
+  if (!quote.validation.is_valid_budget) {
+    throw createError(quote.validation.message, 400, {
+      ...quote.wallet,
+      payment_summary: quote.payment_summary,
+      validation: quote.validation,
     });
   }
-
-  const target = await getTarget(adId, userId);
-  if (!target) {
-    throw createError("Please complete location targeting before configuring the campaign.", 400);
-  }
-  const timezone = validateTimezone(target.timezone);
-
-  let durationDays;
-  let startDate = null;
-  let endDate = null;
-  if (data.duration_type === "days") {
-    durationDays = data.duration_days;
-  } else {
-    startDate = data.start_date;
-    endDate = data.end_date;
-    durationDays = calculateCustomDurationDays(startDate, endDate, timezone);
-  }
-  if (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > 3660) {
-    throw createError("Campaign duration must be between 1 and 3660 days.", 400);
-  }
-
-  const taxConfiguration = await getBusinessTaxConfiguration(ad.business_id);
-  const paymentSummary = calculatePaymentSummary(dailyBudget, durationDays, null, taxConfiguration);
-  paymentSummary.currency = currency.currency_code;
-  paymentSummary.currency_symbol = currency.currency_symbol;
-  const requiredMicros = decimalToMicros(paymentSummary.total_payable);
-  if (!isPublishedEditableCampaign && availableBalanceMicros < requiredMicros) {
-    const additional = requiredMicros - availableBalanceMicros;
-    throw createError("Insufficient wallet balance. Please add funds before continuing.", 400, {
-      currency: currency.currency_code,
-      available_balance: microsToDecimal(availableBalanceMicros),
-      required_amount: paymentSummary.total_payable,
-      additional_amount_required: microsToDecimal(additional),
-      payment_summary: paymentSummary,
+  if (!quote.wallet.sufficient_balance) {
+    throw createError(quote.validation.message, 400, {
+      ...quote.wallet,
+      payment_summary: quote.payment_summary,
+      validation: quote.validation,
     });
   }
-
-  // TEMPORARILY DISABLED: campaign estimation will be re-enabled later.
-  // const estimation = await buildEstimation(ad, currency.currency_code, paymentSummary.actual_campaign_budget);
-  const schedule = buildCampaignSchedule({
-    duration_type: data.duration_type,
-    duration_days: durationDays,
-    start_date: startDate,
-    end_date: endDate,
-    timezone,
-  });
 
   const campaign = await model.saveCampaign(adId, userId, {
-    daily_budget: paymentSummary.daily_budget,
-    total_budget: paymentSummary.actual_campaign_budget,
-    currency_code: currency.currency_code,
+    daily_budget: quote.payment_summary.daily_budget,
+    total_budget: quote.payment_summary.actual_campaign_budget,
+    currency_code: quote.currency.currency_code,
     duration_type: data.duration_type,
-    duration_days: durationDays,
-    start_date: startDate,
-    end_date: endDate,
-    timezone,
-  }, schedule);
+    duration_days: quote.campaign.duration_days,
+    start_date: data.duration_type === "custom_date" ? data.start_date : null,
+    end_date: data.duration_type === "custom_date" ? data.end_date : null,
+    timezone: quote.campaign.timezone,
+  }, {
+    startDate: quote.campaign.start_date,
+    endDate: quote.campaign.end_date,
+    startTimestamp: quote.campaign.start_timestamp,
+    endTimestamp: quote.campaign.end_timestamp,
+    campaignStatus: quote.campaign.campaign_status,
+  });
 
   return {
     campaign,
-    currency,
-    payment_summary: paymentSummary,
-    // estimation, // TEMPORARILY DISABLED; retain for future estimation support.
-    wallet: {
-      available_balance: microsToDecimal(availableBalanceMicros),
-      currency: currency.currency_code,
-      maximum_daily_budget: microsToDecimal(availableBalanceMicros),
-      required_amount: paymentSummary.total_payable,
-      additional_amount_required: "0.000000",
-      sufficient_balance: true,
-    },
+    currency: quote.currency,
+    payment_summary: quote.payment_summary,
+    wallet: quote.wallet,
   };
 };
 
@@ -351,14 +514,19 @@ const getCampaignDetails = async (adId, userId) => {
   paymentSummary.currency = currency.currency_code;
   paymentSummary.currency_symbol = currency.currency_symbol;
 
-  // Return the current wallet balance for the campaign currency so the
-  // Step 3 screen can show the same wallet context as the save response.
-  const walletRecord = await getWalletByUserId(userId, currency.currency_code);
-  const availableBalanceMicros = decimalToMicros(walletRecord?.balance ?? 0);
-  const requiredAmountMicros = decimalToMicros(paymentSummary.total_payable);
-  const additionalAmountMicros = requiredAmountMicros > availableBalanceMicros
-    ? requiredAmountMicros - availableBalanceMicros
-    : 0n;
+  // Match the Step 3 quote: account for other active, paused and scheduled
+  // campaign commitments in the same global, currency-specific wallet.
+  const walletAvailability = await calculateWalletAvailability({
+    userId,
+    ad: {
+      status: campaign.ad_status,
+      campaign_id: campaign.campaign_id,
+    },
+    currency,
+    paymentSummary,
+    durationDays: Number(campaign.duration_days),
+    taxConfiguration,
+  });
 
   const nowTimestamp = Math.floor(Date.now() / 1000);
   const isScheduled =
@@ -377,14 +545,8 @@ const getCampaignDetails = async (adId, userId) => {
     },
     currency,
     payment_summary: paymentSummary,
-    wallet: {
-      available_balance: microsToDecimal(availableBalanceMicros),
-      currency: currency.currency_code,
-      maximum_daily_budget: microsToDecimal(availableBalanceMicros),
-      required_amount: paymentSummary.total_payable,
-      additional_amount_required: microsToDecimal(additionalAmountMicros),
-      sufficient_balance: availableBalanceMicros >= requiredAmountMicros,
-    },
+    wallet: walletAvailability.wallet,
+    validation: walletAvailability.validation,
   };
 };
 
@@ -398,6 +560,9 @@ const republishCompletedAd = async (adId, userId) => {
     next_step: 1,
   };
 };
+
+const getCampaignBudgetQuote = async (adId, userId, data) =>
+  buildCampaignBudgetQuote(adId, userId, data);
 
 const getCampaignEstimation = async (adId, userId) => {
   const campaign = await model.getCampaignEstimationData(adId, userId);
@@ -438,6 +603,7 @@ const publishCampaign = async (adId, userId) => {
 export default {
   saveCampaign,
   getCampaignDetails,
+  getCampaignBudgetQuote,
   publishCampaign,
   republishCompletedAd,
   getCampaignEstimation,

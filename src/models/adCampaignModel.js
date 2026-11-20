@@ -20,6 +20,71 @@ const createError = (message, statusCode, details = null) => {
   return error;
 };
 
+const assertWalletCommitmentAvailable = async ({
+  connection,
+  userId,
+  businessId,
+  currencyCode,
+  totalBudget,
+  excludeCampaignId = null,
+}) => {
+  const [walletRows] = await connection.execute(
+    `SELECT id FROM wallets WHERE user_id = ? LIMIT 1 FOR UPDATE`,
+    [userId],
+  );
+  if (!walletRows.length) throw createError("Wallet not found.", 404);
+  const wallet = walletRows[0];
+
+  await connection.execute(
+    `INSERT IGNORE INTO wallet_balances (wallet_id, currency_code, balance)
+     VALUES (?, ?, 0.000000)`,
+    [wallet.id, currencyCode],
+  );
+  const [balanceRows] = await connection.execute(
+    `SELECT balance FROM wallet_balances
+     WHERE wallet_id = ? AND currency_code = ? FOR UPDATE`,
+    [wallet.id, currencyCode],
+  );
+  if (!balanceRows.length) {
+    throw createError("Wallet currency balance not found.", 404);
+  }
+
+  const nowTimestamp = Math.floor(Date.now() / 1000);
+  const outstanding = await getWalletCommitmentSummary(
+    connection,
+    userId,
+    nowTimestamp,
+    currencyCode,
+    excludeCampaignId,
+  );
+  const campaignTax = await getBusinessTaxConfiguration(businessId, connection);
+  const campaignPayable = calculateWalletPayableMicros(
+    decimalToMicros(totalBudget),
+    campaignTax.platform_fee_rate,
+    campaignTax.tax_rate,
+  );
+  const requiredWalletMicros =
+    outstanding.committedPayableMicros + campaignPayable.payableMicros;
+  const availableWalletMicros = decimalToMicros(balanceRows[0].balance);
+
+  if (availableWalletMicros < requiredWalletMicros) {
+    throw createError(
+      "Insufficient wallet balance. Please add funds or reduce the campaign budget or duration.",
+      400,
+      {
+        currency: currencyCode,
+        available_balance: microsToDecimal(availableWalletMicros),
+        existing_campaign_commitment: outstanding.committedPayable,
+        current_campaign_required: microsToDecimal(campaignPayable.payableMicros),
+        total_required: microsToDecimal(requiredWalletMicros),
+        additional_amount_required: microsToDecimal(
+          requiredWalletMicros - availableWalletMicros,
+        ),
+      },
+    );
+  }
+};
+
 const validateTimezone = (timezone) => {
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: timezone });
@@ -376,6 +441,21 @@ const saveCampaign = async (adId, userId, data, schedule = null) => {
           "Only draft, active or paused campaigns can be edited.",
           409,
         );
+      }
+
+      // Unpublished drafts do not reserve funds yet, but Step 3 must still
+      // validate affordability alongside the user's other campaign commitments.
+      // Recheck while holding the global wallet lock to prevent concurrent drafts
+      // from relying on the same available balance.
+      if (isUnpublishedDraft) {
+        await assertWalletCommitmentAvailable({
+          connection,
+          userId,
+          businessId: ad.business_id,
+          currencyCode: data.currency_code,
+          totalBudget: data.total_budget,
+          excludeCampaignId: campaignId,
+        });
       }
 
       if (isLiveCampaignEdit) {
@@ -805,6 +885,16 @@ const saveCampaign = async (adId, userId, data, schedule = null) => {
         );
       }
     } else {
+      // The first Step 3 save has no campaign row to exclude from commitments.
+      await assertWalletCommitmentAvailable({
+        connection,
+        userId,
+        businessId: ad.business_id,
+        currencyCode: data.currency_code,
+        totalBudget: data.total_budget,
+        excludeCampaignId: null,
+      });
+
       const [result] = await insertCampaignWithUniqueCode(
         connection,
         `
@@ -910,6 +1000,77 @@ const saveCampaign = async (adId, userId, data, schedule = null) => {
   } finally {
     connection.release();
   }
+};
+
+const getCampaignBudgetQuoteWalletContext = async (
+  userId,
+  currencyCode,
+  excludeCampaignId = null,
+) => {
+  const currency = String(currencyCode || "").trim().toUpperCase();
+  if (!currency) throw createError("Campaign currency is required.", 400);
+
+  const [walletRows] = await pool.execute(
+    `
+      SELECT
+        w.id AS wallet_id,
+        COALESCE(wb.balance, 0.000000) AS balance
+      FROM wallets w
+      LEFT JOIN wallet_balances wb
+        ON wb.wallet_id = w.id
+        AND wb.currency_code = ?
+      WHERE w.user_id = ?
+      LIMIT 1
+    `,
+    [currency, userId],
+  );
+
+  if (!walletRows.length) {
+    throw createError("Wallet not found. Please add funds first.", 404);
+  }
+
+  const nowTimestamp = Math.floor(Date.now() / 1000);
+  const commitments = await getWalletCommitmentSummary(
+    pool,
+    userId,
+    nowTimestamp,
+    currency,
+    excludeCampaignId,
+  );
+
+  let currentCampaignSpent = "0.000000";
+  let currentCampaignCurrency = null;
+  if (excludeCampaignId !== null && excludeCampaignId !== undefined) {
+    const [campaignRows] = await pool.execute(
+      `
+        SELECT currency_code
+        FROM ad_campaigns
+        WHERE id = ? AND user_id = ? AND is_deleted = 0
+        LIMIT 1
+      `,
+      [excludeCampaignId, userId],
+    );
+    currentCampaignCurrency = campaignRows[0]?.currency_code ?? null;
+
+    const [spentRows] = await pool.execute(
+      `
+        SELECT COALESCE(SUM(total_charge), 0.000000) AS spent
+        FROM ad_campaign_daily_spend
+        WHERE campaign_id = ? AND currency_code = ?
+      `,
+      [excludeCampaignId, currency],
+    );
+    currentCampaignSpent = String(spentRows[0]?.spent ?? "0.000000");
+  }
+
+  return {
+    wallet_id: Number(walletRows[0].wallet_id),
+    wallet_balance: String(walletRows[0].balance ?? "0.000000"),
+    existing_campaign_commitment: commitments.committedPayable,
+    existing_campaign_count: commitments.campaignCount,
+    current_campaign_spent: currentCampaignSpent,
+    current_campaign_currency: currentCampaignCurrency,
+  };
 };
 
 const getCampaignDetails = async (adId, userId) => {
@@ -1222,7 +1383,7 @@ const publishCampaign = async (
         requiredWalletMicros - availableWalletMicros;
 
       throw createError(
-        "Insufficient wallet balance to publish this campaign while maintaining the budgets of your other published campaigns.",
+        "Insufficient wallet balance to publish this campaign. Please add funds or reduce the campaign budget or duration.",
         400,
         {
           available_balance: Number(microsToDecimal(availableWalletMicros)),
@@ -1656,6 +1817,7 @@ const getCampaignPricingPreview = async (ad, currencyCode) => {
 export {
   saveCampaign,
   getCampaignDetails,
+  getCampaignBudgetQuoteWalletContext,
   getDraftCampaignForPublish,
   publishCampaign,
   getCampaignEstimationData,

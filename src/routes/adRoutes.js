@@ -875,6 +875,114 @@ router.get(
 
 /**
  * @swagger
+ * /api/ads/{id}/campaign/quote:
+ *   post:
+ *     summary: Preview Step 3 campaign costs and wallet sufficiency
+ *     description: >
+ *       Calculates the campaign's base budget, business-country platform fee,
+ *       applicable service tax, total payable amount, and available wallet funds
+ *       after existing campaign commitments. This endpoint is read-only and is
+ *       intended to be called when the daily budget or campaign duration changes.
+ *       It does not save the campaign or reserve funds. The authenticated user’s
+ *       currency is determined by the selected business country, not the target
+ *       location. Estimated reach and views are not returned.
+ *     tags: [Ads]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Advertisement ID (not campaign ID)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [daily_budget, duration_type]
+ *             properties:
+ *               daily_budget:
+ *                 type: number
+ *                 minimum: 100
+ *                 example: 200
+ *               duration_type:
+ *                 type: string
+ *                 enum: [days, custom_date]
+ *                 example: days
+ *               duration_days:
+ *                 type: integer
+ *                 minimum: 1
+ *                 example: 5
+ *               start_date:
+ *                 type: string
+ *                 format: date
+ *                 example: "2026-11-21"
+ *               end_date:
+ *                 type: string
+ *                 format: date
+ *                 example: "2026-11-25"
+ *     responses:
+ *       200:
+ *         description: |
+ *           Quote calculated. Check data.validation.is_valid_budget and
+ *           data.wallet.can_continue before enabling Save & Continue.
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: true
+ *               message: Campaign budget quote calculated successfully.
+ *               data:
+ *                 currency:
+ *                   currency_code: INR
+ *                   currency_symbol: "₹"
+ *                 campaign:
+ *                   daily_budget: "200.000000"
+ *                   duration_type: days
+ *                   duration_days: 5
+ *                   start_date: "2026-11-21"
+ *                   end_date: "2026-11-26"
+ *                   timezone: Asia/Kolkata
+ *                 payment_summary:
+ *                   actual_campaign_budget: "1000.000000"
+ *                   platform_fee_percentage: 30
+ *                   platform_fee: "300.000000"
+ *                   tax_name: GST
+ *                   tax_percentage: 18
+ *                   tax_amount: "180.000000"
+ *                   total_payable: "1480.000000"
+ *                   currency_code: INR
+ *                   currency_symbol: "₹"
+ *                 wallet:
+ *                   available_balance: "2000.000000"
+ *                   existing_campaign_commitment: "0.000000"
+ *                   required_amount: "1480.000000"
+ *                   total_required: "1480.000000"
+ *                   additional_amount_required: "0.000000"
+ *                   can_continue: true
+ *                   sufficient_balance: true
+ *                 validation:
+ *                   is_valid_budget: true
+ *                   message: null
+ *       400:
+ *         description: Invalid budget, duration, dates, or targeting configuration.
+ *       401:
+ *         description: Missing, invalid, or expired access token.
+ *       404:
+ *         description: Ad, business, media, target, or wallet not found.
+ *       409:
+ *         description: Published campaign currency cannot be changed.
+ */
+router.post(
+  "/:id/campaign/quote",
+  middleware,
+  adCampaignController.getCampaignBudgetQuote,
+);
+
+/**
+ * @swagger
  * /api/ads/{id}/campaign:
  *   put:
  *     summary: Save or update campaign budget and duration for draft, active or paused campaigns
