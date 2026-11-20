@@ -170,10 +170,26 @@ export const updateAd = async (adId, userId, data, file) => {
     ? data.ad_subtype_id
     : existingAd.ad_subtype_id;
 
-  const validatedSubtypeId = await prepareAdSubtype(
-    effectiveAdTypeId,
-    effectiveSubtypeId,
-  );
+  // Do not force legacy ads to select a subtype merely because the user is
+  // editing an unrelated Step 1 field. Some existing ads legitimately have a
+  // NULL subtype even when their ad type now has active subtype choices.
+  // Revalidate only when the ad type actually changes or the subtype changes.
+  const normalizeSubtypeId = (value) =>
+    value === undefined || value === null || value === ""
+      ? null
+      : Number(value);
+
+  const adTypeChanged =
+    Number(effectiveAdTypeId) !== Number(existingAd.ad_type_id);
+  const subtypeChanged =
+    Object.hasOwn(data, "ad_subtype_id") &&
+    normalizeSubtypeId(effectiveSubtypeId) !==
+      normalizeSubtypeId(existingAd.ad_subtype_id);
+
+  const validatedSubtypeId =
+    adTypeChanged || subtypeChanged
+      ? await prepareAdSubtype(effectiveAdTypeId, effectiveSubtypeId)
+      : normalizeSubtypeId(existingAd.ad_subtype_id);
 
   if (data.business_id !== undefined) {
     const [businessRows] = await db.execute(
