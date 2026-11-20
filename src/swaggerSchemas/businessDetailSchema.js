@@ -12,12 +12,6 @@ const businessDetailSchema = {
         example: "yourmail@gmail.com",
       },
       country_code: { type: "string", example: "IN" },
-      timezone: {
-        type: "string",
-        nullable: true,
-        example: "Asia/Kolkata",
-        description: "IANA timezone resolved by the backend from the business location.",
-      },
       admin_area_1: {
         type: "string",
         nullable: true,

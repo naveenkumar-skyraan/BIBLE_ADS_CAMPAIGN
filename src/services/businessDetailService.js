@@ -4,7 +4,6 @@ import { fileURLToPath } from "node:url";
 
 import pool from "../configs/database/db.js";
 import businessDetailModel from "../models/businessDetailModel.js";
-import { resolveBusinessTimezone } from "../utils/businessTimezone.js";
 import { getAllCountryCurrencies, getCurrencyByCountryCode, isCashfreeCurrencySupported } from "../utils/currencyConfig.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -186,11 +185,8 @@ const businessDetailService = {
     try {
       await connection.beginTransaction();
 
-      const timezone = await resolveBusinessTimezone(data);
-
       const businessId = await businessDetailModel.create(connection, {
         ...data,
-        timezone,
         user_id: userId,
       });
 
@@ -251,25 +247,7 @@ const businessDetailService = {
     try {
       await connection.beginTransaction();
 
-      const locationFields = [
-        "country_code",
-        "admin_area_1",
-        "admin_area_2",
-        "city",
-        "area",
-        "postal_code",
-      ];
-      const locationChanged = locationFields.some((field) =>
-        Object.hasOwn(data, field),
-      );
-      const timezone = locationChanged
-        ? await resolveBusinessTimezone(merged)
-        : existing.timezone;
-
-      await businessDetailModel.update(connection, businessId, userId, {
-        ...data,
-        timezone,
-      });
+      await businessDetailModel.update(connection, businessId, userId, data);
 
       const updatedBusiness = await businessDetailModel.findById(
         businessId,

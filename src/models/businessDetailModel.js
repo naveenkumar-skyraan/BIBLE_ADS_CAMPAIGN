@@ -50,9 +50,8 @@ const businessDetailModel = {
         city,
         area,
         postal_code,
-        tax_id,
-        timezone
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        tax_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.user_id,
         data.name,
@@ -65,7 +64,6 @@ const businessDetailModel = {
         data.area || null,
         data.postal_code || null,
         data.tax_id || null,
-        data.timezone || null,
       ],
     );
 
@@ -111,7 +109,6 @@ const businessDetailModel = {
       "area",
       "postal_code",
       "tax_id",
-      "timezone",
     ];
 
     const fields = allowedFields.filter((field) => Object.hasOwn(data, field));
@@ -272,7 +269,6 @@ const businessDetailModel = {
       "area",
       "postal_code",
       "tax_id",
-      "timezone",
     ];
 
     const fields = allowedFields.filter((field) => Object.hasOwn(data, field));
