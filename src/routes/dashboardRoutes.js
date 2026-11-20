@@ -21,8 +21,10 @@ const router = express.Router();
  *     description: >
  *       Returns business selection data, impressions, clicks, spend,
  *       campaign status distribution, spend chart data and top-performing
- *       campaigns. Spend and analytics are read from accepted daily spend records.
- *       Base ad spend, platform fee, GST and wallet debit are returned separately.
+ *       campaigns. Top-performing campaigns use the same date range selected by
+ *       spend_period in Spend Overview. Spend and analytics are read from accepted
+ *       daily spend records. Base ad spend, platform fee, GST and wallet debit are
+ *       returned separately.
  *     tags: [Dashboard]
  *     security:
  *       - bearerAuth: []

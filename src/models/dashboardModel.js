@@ -242,6 +242,12 @@ const getDashboardOverview = async ({
           a.moderation_status,
           a.objective_id,
           o.name AS objective_name,
+          a.ad_type_id,
+          adt.name AS ad_type_name,
+          a.ad_subtype_id,
+          ast.name AS ad_subtype_name,
+          c.duration_type,
+          c.duration_days,
           c.currency_code,
           (
             SELECT media.file_url
@@ -252,6 +258,17 @@ const getDashboardOverview = async ({
             ORDER BY media.sort_order ASC, media.id ASC
             LIMIT 1
           ) AS image_url,
+          (
+            SELECT media.media_type
+            FROM ad_media media
+            WHERE media.ad_id = a.id
+              AND media.is_active = 1
+            ORDER BY
+              CASE WHEN media.media_type = 'image' THEN 0 ELSE 1 END,
+              media.sort_order ASC,
+              media.id ASC
+            LIMIT 1
+          ) AS media_type,
           COALESCE(SUM(ds.impressions), 0) AS impressions,
           COALESCE(SUM(ds.clicks), 0) AS clicks,
           COALESCE(SUM(ds.total_charge), 0) AS amount_spent,
@@ -272,6 +289,10 @@ const getDashboardOverview = async ({
           )
         LEFT JOIN ad_objectives o
           ON o.id = a.objective_id
+        LEFT JOIN ad_types adt
+          ON adt.id = a.ad_type_id
+        LEFT JOIN ad_subtypes ast
+          ON ast.id = a.ad_subtype_id
         LEFT JOIN ad_campaign_daily_spend ds
           ON ds.campaign_id = c.id
           AND ds.ad_id = a.id
@@ -285,7 +306,9 @@ const getDashboardOverview = async ({
           AND a.is_deleted = 0
         GROUP BY
           c.id, a.id, a.title, a.description, a.status, c.status,
-          a.moderation_status, a.objective_id, o.name, c.currency_code
+          a.moderation_status, a.objective_id, o.name, a.ad_type_id,
+          adt.name, a.ad_subtype_id, ast.name,
+          c.duration_type, c.duration_days, c.currency_code
         HAVING
           SUM(COALESCE(ds.impressions, 0)) > 0
           OR SUM(COALESCE(ds.clicks, 0)) > 0
@@ -293,7 +316,7 @@ const getDashboardOverview = async ({
         ORDER BY impressions DESC, clicks DESC, amount_spent DESC, c.id DESC
         LIMIT ?
       `,
-      [overviewRange.start, overviewRange.end, userId, business.id, topLimit],
+      [spendRange.start, spendRange.end, userId, business.id, topLimit],
     ),
   ]);
 
@@ -424,8 +447,10 @@ const getDashboardOverview = async ({
     filters: {
       overview_period: overviewPeriod,
       spend_period: spendPeriod,
+      top_performing_period: spendPeriod,
       overview: overviewRange,
       spend: spendRange,
+      top_performing: spendRange,
     },
     quick_overview: {
       total_impressions: currentImpressions,
@@ -482,6 +507,26 @@ const getDashboardOverview = async ({
       image_url: row.image_url,
       objective_id: Number(row.objective_id),
       objective_name: row.objective_name,
+      ad_type_id: Number(row.ad_type_id),
+      ad_type_name: row.ad_type_name,
+      ad_subtype_id: row.ad_subtype_id === null || row.ad_subtype_id === undefined
+        ? null
+        : Number(row.ad_subtype_id),
+      ad_subtype_name: row.ad_subtype_name || null,
+      media_type: row.media_type || null,
+      media_type_label:
+        row.media_type === "image"
+          ? "Image Ad"
+          : row.media_type === "video"
+            ? "Video Ad"
+            : null,
+      duration_type: row.duration_type,
+      duration_days: row.duration_days === null || row.duration_days === undefined
+        ? null
+        : numeric(row.duration_days),
+      duration_label: row.duration_days === null || row.duration_days === undefined
+        ? null
+        : `${numeric(row.duration_days)} ${numeric(row.duration_days) === 1 ? "day" : "days"}`,
       status: row.campaign_status,
       ad_status: row.ad_status,
       moderation_status: row.moderation_status,
